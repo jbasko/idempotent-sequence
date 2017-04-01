@@ -1,44 +1,37 @@
-from idemseq.idempotent_sequence import CommandSequence, Command
+import pytest
+
+from idemseq.command import Command
+from idemseq.sequence import SequenceCommand, SequenceBase
 
 
 def test_command_registration():
-    seq = CommandSequence()
+    output = []
+    seq = SequenceBase()
 
     @seq.command
     def first():
-        return 1
+        output.append(1)
 
     @seq.command(name='second')
     def second_step():
-        return 2
+        output.append(2)
 
     @seq.command(run_always=True)
     def third_step():
-        return 3
+        output.append(3)
 
     @seq.command
     def fourth_step(a, b, c=3):
-        return a + b + c
+        output.append(a + b + c)
 
-    # Commands should be registered with the right name
-    assert len(seq.commands) == 4
-    assert 'first' in seq.commands
-    assert 'second' in seq.commands
-    assert 'second_step' not in seq.commands
-    assert 'third' not in seq.commands
-    assert 'third_step' in seq.commands
-    assert 'fourth_step' in seq.commands
-
-    assert isinstance(seq.commands['first'], Command)
-    assert isinstance(seq.commands['second'], Command)
-
-    # Command options
-    assert seq.commands['first'].options.run_always is None
-    assert seq.commands['second'].options.run_always is None
-    assert seq.commands['third_step'].options.run_always is True
-    assert seq.commands['fourth_step'].options.run_always is None
+    assert output == []
 
     seq.run_without_registration(context=dict(a=1, b=2))
+    assert output == [1, 2, 3, 6]
+
+    # All steps will run again because we are not registering the state
+    seq.run_without_registration(context=dict(a=1, b=2))
+    assert output == [1, 2, 3, 6, 1, 2, 3, 6]
 
 
 def test_steps_are_run_once():
@@ -47,7 +40,7 @@ def test_steps_are_run_once():
     def append_to_output():
         outputs.append(1)
 
-    seq = CommandSequence(
+    seq = SequenceBase(
         Command(append_to_output, name='one'),
         Command(append_to_output, name='two'),
     )
@@ -63,7 +56,7 @@ def test_steps_are_run_once():
     invocation1.run()
     assert len(outputs) == 2
 
-    # A different invocation
+    # A different example
 
     invocation2 = seq()
     invocation2.run()
@@ -74,7 +67,7 @@ def test_steps_are_run_once():
 def test_run_always_is_respected():
     outputs = []
 
-    seq = CommandSequence()
+    seq = SequenceBase()
 
     @seq.command
     def append_1_to_output():
@@ -88,15 +81,15 @@ def test_run_always_is_respected():
     def append_3_to_output():
         outputs.append(3)
 
-    invocation = seq()
+    appender = seq()
 
-    invocation.run()
+    appender.run()
     assert outputs == [1, 2, 3]
 
-    invocation.run()
+    appender.run()
     assert outputs == [1, 2, 3, 2]
 
-    invocation.run()
+    appender.run()
     assert outputs == [1, 2, 3, 2, 2]
 
 
@@ -106,7 +99,7 @@ def test_context_is_injected_and_replaced_entirely_if_specified_on_run():
     def do_multiplication(x, y=10):
         outputs.append(x * y)
 
-    seq = CommandSequence(
+    seq = SequenceBase(
         Command(do_multiplication, name='first'),
         Command(do_multiplication, name='second'),
     )
@@ -123,7 +116,7 @@ def test_context_is_injected_and_replaced_entirely_if_specified_on_run():
 def test_order_is_respected():
     outputs = []
 
-    seq = CommandSequence()
+    seq = SequenceBase()
 
     @seq.command(order=300)
     def append_1_to_output():
@@ -139,3 +132,68 @@ def test_order_is_respected():
 
     seq.run_without_registration()
     assert outputs == [2, 3, 1]
+
+
+def test_can_inspect_invocation_completion():
+    assert SequenceBase()().is_finished
+
+    seq = SequenceBase(Command(lambda: 1, name='first'))()
+    assert not seq.is_finished
+
+    seq.run()
+    assert seq.is_finished
+
+
+def test_can_inspect_and_run_step_individually():
+    seq = SequenceBase(
+        Command(lambda: 1, name='first'),
+        Command(lambda: 2, name='second'),
+        Command(lambda: 3, name='third'),
+        Command(lambda: 4, name='fourth', run_always=True),
+    )
+    inv = seq()
+
+    steps = list(inv)
+    assert not steps[0].is_finished
+    assert not steps[1].is_finished
+    assert not steps[2].is_finished
+
+    steps[0].run()
+    assert steps[0].is_finished
+    assert not steps[1].is_finished
+    assert not steps[2].is_finished
+
+    with pytest.raises(SequenceCommand.AlreadyCompleted):
+        steps[0].run()
+
+    with pytest.raises(SequenceCommand.PreviousStepsNotFinished):
+        steps[2].run()
+
+    steps[1].run()
+    assert steps[0].is_finished
+    assert steps[1].is_finished
+    assert not steps[2].is_finished
+
+    with pytest.raises(SequenceCommand.AlreadyCompleted):
+        steps[0].run()
+
+    with pytest.raises(SequenceCommand.AlreadyCompleted):
+        steps[1].run()
+
+    steps[2].run()
+    assert steps[0].is_finished
+    assert steps[1].is_finished
+    assert steps[2].is_finished
+
+    with pytest.raises(SequenceCommand.AlreadyCompleted):
+        steps[2].run()
+
+    assert not steps[3].is_finished
+    assert not inv.is_finished
+
+    steps[3].run()
+    assert steps[3].is_finished
+    assert inv.is_finished
+
+    # Still runnable because run_always=True
+    steps[3].run()

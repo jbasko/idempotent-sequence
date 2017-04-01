@@ -1,25 +1,25 @@
 import pytest
 
-from idemseq.idempotent_sequence import Command
-from idemseq.invocation import Step
-from idemseq.persistence import SqliteStepRegistry
+from idemseq.command import Command
+from idemseq.sequence import SequenceCommand
+from idemseq.persistence import SqliteStateRegistry
 
 
 def test_sqlite_step_registry():
-    step = Step(index=1, command=Command(lambda: 1, name='first'))
+    step = SequenceCommand(command=Command(lambda: 1, name='first'))
 
-    reg = SqliteStepRegistry(':memory:')
+    reg = SqliteStateRegistry(':memory:')
 
     assert not reg.get_known_statuses()
-    assert reg.get_status(step) == Step.status_unknown
+    assert reg.get_status(step) == SequenceCommand.status_unknown
 
-    reg.update_status(step, Step.status_finished)
-    assert reg.get_status(step) == Step.status_finished
+    reg.update_status(step, SequenceCommand.status_finished)
+    assert reg.get_status(step) == SequenceCommand.status_finished
     assert reg.get_known_statuses() == {'first': 'finished'}
 
-    reg.update_status(step, Step.status_unknown)
-    assert reg.get_known_statuses() == {'first': Step.status_unknown}
-    assert reg.get_status(step) == Step.status_unknown
+    reg.update_status(step, SequenceCommand.status_unknown)
+    assert reg.get_known_statuses() == {'first': SequenceCommand.status_unknown}
+    assert reg.get_status(step) == SequenceCommand.status_unknown
 
     with pytest.raises(ValueError):
         reg.update_status(step, 'some_invalid_status')

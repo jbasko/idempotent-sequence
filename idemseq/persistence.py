@@ -1,7 +1,7 @@
 import contextlib
 import sqlite3
 
-from idemseq.invocation import Step
+from idemseq.sequence import SequenceCommand
 
 
 class StepRegistry(object):
@@ -12,55 +12,55 @@ class StepRegistry(object):
     def name(self):
         return self._name
 
-    def update_status(self, step, status):
+    def update_status(self, command, status):
         """
-        Updates status of the step to the specified string.
+        Updates status of the command to the specified string.
         
-        :param step: Step 
+        :param command: SequenceCommand 
         :param status: string 
         :return: None
         """
         raise NotImplementedError()
 
-    def get_status(self, step):
+    def get_status(self, command):
         """
-        Returns a string representing the status of the step.
+        Returns a string representing the status of the command.
         """
         raise NotImplementedError()
 
     def get_known_statuses(self):
         """
-        Returns a mapping of step names to step statuses for those steps
+        Returns a mapping of command names to command statuses for those commands
         for which this registry has information.
         """
         raise NotImplementedError()
 
 
-class SqliteStepRegistry(StepRegistry):
+class SqliteStateRegistry(StepRegistry):
     _table_name = 'steps'
 
     def __init__(self, name=None):
         if name is None:
             name = ':memory:'
-        super(SqliteStepRegistry, self).__init__(name)
+        super(SqliteStateRegistry, self).__init__(name)
         self._actual_connection = None
 
-    def update_status(self, step, status):
-        if status not in Step.valid_statuses:
+    def update_status(self, command, status):
+        if status not in SequenceCommand.valid_statuses:
             raise ValueError(status)
         with self._cursor() as cursor:
             cursor.execute('INSERT OR REPLACE INTO {} (name, status) VALUES (?, ?)'.format(
                 self._table_name,
-            ), (step.name, status))
+            ), (command.name, status))
 
-    def get_status(self, step):
+    def get_status(self, command):
         with self._cursor() as cursor:
             cursor.execute('SELECT status FROM {} WHERE name = ?'.format(
                 self._table_name,
-            ), (step.name,))
+            ), (command.name,))
             rows = list(cursor.fetchall())
             if not rows:
-                return Step.status_unknown
+                return SequenceCommand.status_unknown
             else:
                 return rows[0][0]
 

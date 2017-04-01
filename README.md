@@ -16,9 +16,9 @@ An example from `idemseq/examples/first.py`:
     
     import random
     
-    from idemseq.idempotent_sequence import CommandSequence
+    from idemseq.idempotent_sequence import SequenceBase
     
-    seq = CommandSequence()
+    seq = SequenceBase()
     
     
     # Mark a command that needs to run even if it has succeeded before

@@ -1,54 +1,72 @@
 """
 An example that demonstrates all the features of the first version.
 """
-
+import logging
 import random
+import time
 
-from idemseq.idempotent_sequence import CommandSequence
+from idemseq.examples.util import configure_logging
+from idemseq.sequence import SequenceBase
 
-seq = CommandSequence()
+
+log = logging.getLogger(__name__)
+
+example = SequenceBase()
 
 
 # Mark a command that needs to run even if it has succeeded before
-@seq.command(run_always=True)
+@example.command(run_always=True)
 def greeting():
-    print('Hello, world!')
+    pass
 
 
 # Change the order of commands, defaults to the order in which they are declared
-@seq.command(order=1000)
+@example.command(order=1000)
 def the_last_command():
-    print('All is done now!')
+    pass
 
 
-# Command arguments are injected from invocation context, default values are respected
-@seq.command
+# Command arguments are injected via context, default values are respected
+@example.command
 def second(random_number_generator, x=0.5):
-    print('Attempting second')
     if random_number_generator() < x:
-        raise Exception('Second command randomly failed!')
-    print('Second succeeded')
+        raise Exception('Bad luck')
 
 
 # Commands can be given custom names
-@seq.command(name='third')
+@example.command(name='third')
 def third_command(random_number_generator):
-    print('Attempting third')
     if random_number_generator() < 0.5:
-        raise Exception('Third command randomly failed')
-    print('Third succeeded')
+        raise Exception('Bad luck')
 
 
 if __name__ == '__main__':
-    invocation = seq('/tmp/first-example-invocation.db', context=dict(random_number_generator=random.random))
+    configure_logging(log_level=logging.DEBUG)
 
-    for i in range(5):
+    # Create a Sequence.
+    # Sequence is associated with an SQLite database where its state is persisted between attempts.
+    sequence = example('/tmp/first-example.db')
+
+    # Forget the state from previous attempts.
+    # If you don't do this then attempting to run this example again
+    # will do nothing.
+    # In real code you
+    sequence.reset()
+
+    attempt_no = 0
+
+    while not sequence.is_finished:
+        attempt_no += 1
+
         try:
-            invocation.run()
+            log.info('Attempt number {}'.format(attempt_no))
+
+            # Run and don't forget to pass context (if any of the commands need it)
+            sequence.run(context=dict(random_number_generator=random.random))
+
         except Exception:
-            # We are lazy, let's ignore exceptions for this example
+            # We are lazy, let's ignore exceptions
+            time.sleep(3)
             pass
 
-    # If we still haven't succeeded, let's inject a better random number generator --
-    # all should surely succeed with this one!
-    invocation.run(context=dict(random_number_generator=lambda: 1.0))
+    log.info('All completed in {} attempt(s)'.format(attempt_no))
