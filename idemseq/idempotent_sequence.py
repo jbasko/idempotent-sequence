@@ -1,7 +1,6 @@
 import inspect
 
-from idemseq.invocation import Step
-from idemseq.persistence import SqliteStepRegistry
+from idemseq.invocation import CommandSequenceInvocation
 
 
 class CommandOptions(dict):
@@ -19,6 +18,15 @@ class CommandOptions(dict):
 
 
 class Command(object):
+    """
+    Represents a function that is run as part of a sequence.
+    
+    Commands aren't meant to be executed directly because they have no
+    knowledge of the context in which they are called 
+    (whether they have called before, whether other commands have been completed etc.).
+    
+    Instead, create and run a Step which encapsulates all the invocation information of a Command.
+    """
     def __init__(self, func=None, **options):
         self._func = func
 
@@ -50,9 +58,7 @@ class Command(object):
         return self._func(*args, **kwargs)
 
 
-class IdempotentSequence(object):
-    step_registry_cls = SqliteStepRegistry
-
+class CommandSequence(object):
     def __init__(self, *commands, **seq_options):
         self._commands = {}
 
@@ -83,21 +89,17 @@ class IdempotentSequence(object):
         else:
             return decorator
 
-    def _get_commands_in_order(self):
+    def __iter__(self):
         for command in sorted(self._commands.values(), key=lambda c: c.options.order):
             yield command
 
-    def generate_steps(self, context=None):
-        """
-        Generate steps one by one.
-        """
-        context = context or {}
-        for index, command in enumerate(self._get_commands_in_order()):
-            yield Step(index=index, command=command, context=context)
+    def __call__(self, step_registry_name=None, context=None):
+        return CommandSequenceInvocation(step_registry_name=step_registry_name, sequence=self, context=context)
 
-    def run(self, context=None):
+    def run_without_registration(self, context=None):
         """
-        Run all steps. 
+        Runs the commands of this sequence, but it uses in-memory storage
+        :param context: 
+        :return: 
         """
-        for step in self.generate_steps(context=context):
-            step.run()
+        self(':memory:', context=context).run()
