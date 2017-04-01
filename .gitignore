@@ -1,0 +1,11 @@
+# Python
+*.pyc
+*.egg-info
+
+# Project-specific
+.cache
+
+# User-specific
+.venv
+.idea
+.DS_Store

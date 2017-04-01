@@ -22,7 +22,7 @@ setup(
     url='https://github.com/jbasko/idempotent-sequence',
     description='Organise a set of units of code in a sequence that can be rerun repeatedly skipping already completed units',
     long_description=read('README.md'),
-    py_modules=['idempotent_sequence'],
+    py_modules=['idemseq.idempotent_sequence'],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
