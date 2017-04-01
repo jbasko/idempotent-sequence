@@ -1,4 +1,5 @@
 from idemseq.idempotent_sequence import IdempotentSequence, Command
+from idemseq.persistence import SqliteStepRegistry
 
 
 def test_command_registration():
@@ -44,3 +45,24 @@ def test_command_registration():
 
     # Run all in one go
     seq.run(context=dict(a=1, b=2))
+
+
+def test_steps_are_run_once():
+    outputs = []
+
+    def append_to_output():
+        outputs.append(1)
+
+    seq = IdempotentSequence(
+        Command(append_to_output, name='one'),
+        Command(append_to_output, name='two'),
+    )
+
+    seq.run()
+    assert len(outputs) == 2
+
+    seq.run()
+    assert len(outputs) == 2
+
+    seq.run()
+    assert len(outputs) == 2

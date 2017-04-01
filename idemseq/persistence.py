@@ -1,7 +1,7 @@
 import contextlib
 import sqlite3
 
-from idemseq.idempotent_sequence import Step
+from idemseq.invocation import Step
 
 
 class StepRegistry(object):
@@ -39,7 +39,9 @@ class StepRegistry(object):
 class SqliteStepRegistry(StepRegistry):
     _table_name = 'steps'
 
-    def __init__(self, name):
+    def __init__(self, name=None):
+        if name is None:
+            name = ':memory:'
         super(SqliteStepRegistry, self).__init__(name)
         self._actual_connection = None
 

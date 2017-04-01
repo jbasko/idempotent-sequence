@@ -1,6 +1,7 @@
 import pytest
 
-from idemseq.idempotent_sequence import Step, Command
+from idemseq.idempotent_sequence import Command
+from idemseq.invocation import Step
 from idemseq.persistence import SqliteStepRegistry
 
 

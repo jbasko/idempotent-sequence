@@ -1,10 +1,13 @@
 import inspect
 
+from idemseq.invocation import Step
+from idemseq.persistence import SqliteStepRegistry
+
 
 class CommandOptions(dict):
     _valid_options = {
         'name': None,
-        'order': None,
+        'order': -1,
         'run_always': None,
     }
 
@@ -43,59 +46,26 @@ class Command(object):
         """
         return self._options
 
-    @property
-    def func(self):
-        return self._func
-
     def __call__(self, *args, **kwargs):
-        return self.func(*args, **kwargs)
-
-
-class Step(object):
-    """
-    Represents a Command in the context of an Invocation of a CommandSequence.
-    """
-
-    status_unknown = 'unknown'
-    status_failed = 'failed'
-    status_finished = 'finished'
-
-    valid_statuses = (
-        status_unknown,
-        status_failed,
-        status_finished,
-    )
-
-    def __init__(self, index, command, context=None):
-        super(Step, self).__init__()
-        self._index = index
-        self._command = command
-        self._context = context or {}
-
-    def __getattr__(self, item):
-        return getattr(self._command, item)
-
-    def __setattr__(self, key, value):
-        if key in ('_command', '_context', '_index'):
-            return super(Step, self).__setattr__(key, value)
-        else:
-            return setattr(self._command, key, value)
-
-    @property
-    def index(self):
-        return self._index
-
-    def run(self):
-        kwargs = {}
-        for param in self._command.parameters:
-            if param.name in self._context:
-                kwargs[param.name] = self._context[param.name]
-        return self._command(**kwargs)
+        return self._func(*args, **kwargs)
 
 
 class IdempotentSequence(object):
-    def __init__(self):
+    step_registry_cls = SqliteStepRegistry
+
+    def __init__(self, *commands, **seq_options):
         self._commands = {}
+
+        for c in commands or ():
+            if isinstance(c, Command):
+                self._register_command(c)
+            else:
+                self._register_command(Command(func=c))
+
+    def _register_command(self, command):
+        if command.name in self._commands:
+            raise ValueError(command.name)
+        self._commands[command.name] = command
 
     @property
     def commands(self):
@@ -105,8 +75,8 @@ class IdempotentSequence(object):
         def decorator(func):
             options.setdefault('order', len(self._commands) + 1)  # The default order is the order of declaration
             command = Command(func=func, **options)
-            self._commands[command.name] = command
-            return command.func
+            self._register_command(command)
+            return command
 
         if f:
             return decorator(f)
