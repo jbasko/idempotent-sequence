@@ -38,11 +38,22 @@ class Step(object):
     """
     Represents a Command in the context of an Invocation of a CommandSequence.
     """
-    def __init__(self, index, command, context):
+
+    status_unknown = 'unknown'
+    status_failed = 'failed'
+    status_finished = 'finished'
+
+    valid_statuses = (
+        status_unknown,
+        status_failed,
+        status_finished,
+    )
+
+    def __init__(self, index, command, context=None):
         super(Step, self).__init__()
         self._index = index
         self._command = command
-        self._context = context
+        self._context = context or {}
 
     def __getattr__(self, item):
         return getattr(self._command, item)
