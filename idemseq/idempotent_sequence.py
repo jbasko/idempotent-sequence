@@ -1,12 +1,25 @@
 import inspect
 
 
+class CommandOptions(dict):
+    _valid_options = {
+        'name': None,
+        'order': None,
+        'run_always': None,
+    }
+
+    def __getattr__(self, item):
+        if item in self._valid_options:
+            return self.get(item, self._valid_options[item])
+        else:
+            raise AttributeError(item)
+
+
 class Command(object):
     def __init__(self, func=None, **options):
         self._func = func
 
-        options.setdefault('order', -1)
-        self._options = options
+        self._options = CommandOptions(options)
 
         self._signature = None
         if self._func:
@@ -14,21 +27,25 @@ class Command(object):
 
     @property
     def name(self):
-        return self._options.get('name', self._func.__name__)
+        return self.options.name or self._func.__name__
 
     @property
     def parameters(self):
+        """
+        Returns a view of parameters from underlying function's signature.
+        """
         return self._signature.parameters.values()
+
+    @property
+    def options(self):
+        """
+        Options passed to the Command decorator/constructor.
+        """
+        return self._options
 
     @property
     def func(self):
         return self._func
-
-    def __getattr__(self, item):
-        if item in self._options:
-            return self._options[item]
-        else:
-            raise AttributeError(item)
 
     def __call__(self, *args, **kwargs):
         return self.func(*args, **kwargs)
@@ -86,7 +103,7 @@ class IdempotentSequence(object):
 
     def command(self, f=None, **options):
         def decorator(func):
-            options.setdefault('order', len(self._commands) + 1)
+            options.setdefault('order', len(self._commands) + 1)  # The default order is the order of declaration
             command = Command(func=func, **options)
             self._commands[command.name] = command
             return command.func
@@ -97,7 +114,7 @@ class IdempotentSequence(object):
             return decorator
 
     def _get_commands_in_order(self):
-        for command in sorted(self._commands.values(), key=lambda c: c.order):
+        for command in sorted(self._commands.values(), key=lambda c: c.options.order):
             yield command
 
     def generate_steps(self, context=None):

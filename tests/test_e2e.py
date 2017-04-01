@@ -1,7 +1,7 @@
 from idemseq.idempotent_sequence import IdempotentSequence, Command
 
 
-def test_the_desired_interface():
+def test_command_registration():
     seq = IdempotentSequence()
 
     @seq.command
@@ -29,9 +29,14 @@ def test_the_desired_interface():
     assert 'third_step' in seq.commands
     assert 'fourth_step' in seq.commands
 
-    # Commands are the registered functions with their original function names
     assert isinstance(seq.commands['first'], Command)
     assert isinstance(seq.commands['second'], Command)
+
+    # Command options
+    assert seq.commands['first'].options.run_always is None
+    assert seq.commands['second'].options.run_always is None
+    assert seq.commands['third_step'].options.run_always is True
+    assert seq.commands['fourth_step'].options.run_always is None
 
     # Run step by step
     for step in seq.generate_steps(context=dict(a=1, b=2)):
