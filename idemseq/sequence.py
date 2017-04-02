@@ -19,6 +19,7 @@ class SequenceRunOptions(Options):
         'warn_only': False,
         'dry_run': None,
         'start_at': None,
+        'stop_before': None,
     }
 
 
@@ -257,7 +258,11 @@ class Sequence(object):
 
         start_at = self.run_options.start_at
         if start_at and start_at not in self:
-            raise ValueError('Invalid command specified as start_at "{}"'.format(start_at))
+            raise ValueError('Invalid command specified for run option start_at - "{}"'.format(start_at))
+
+        stop_before = self.run_options.stop_before
+        if stop_before and stop_before not in self:
+            raise ValueError('Invalid command specified for run option stop_before - "{}"'.format(stop_before))
 
         for command in self._base:
             if start_at:
@@ -265,6 +270,9 @@ class Sequence(object):
                     continue
                 else:
                     start_at = None
+
+            if stop_before and command.name == stop_before:
+                return
 
             yield SequenceCommand(command=command, sequence=self)
 

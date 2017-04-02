@@ -107,3 +107,22 @@ def test_start_at_run_option(three_appenders_sequence_base):
     with pytest.raises(ValueError):
         sequence.run(start_at='nonexistent')
 
+    assert base.outputs == [2, 3]
+
+    sequence.run(start_at='appender1')
+    assert base.outputs == [2, 3, 1]
+
+
+def test_stop_before_run_option(three_appenders_sequence_base):
+    base = three_appenders_sequence_base
+    sequence = three_appenders_sequence_base()
+    assert base.outputs == []
+
+    sequence.run(stop_before='appender2')
+    assert base.outputs == [1]
+
+    sequence.run(stop_before='appender3')
+    assert base.outputs == [1, 2]
+
+    with pytest.raises(ValueError):
+        sequence.run(stop_before='nonexistent')
