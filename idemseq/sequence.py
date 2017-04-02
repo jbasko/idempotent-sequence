@@ -276,6 +276,7 @@ class Sequence(object):
         return self._current_env.run_options
 
     def reset(self):
+        log.warning('Resetting state')
         for command in self._base:
             self.state_registry.update_status(command, SequenceCommand.status_unknown)
 
@@ -315,6 +316,7 @@ class Sequence(object):
             if self.is_finished:
                 run_always = [command for command in self if command.options.run_always]
                 if run_always:
+                    log.debug('Sequence has already been completed, running commands marked with run_always')
                     for command in run_always:
                         command.run()
                 else:

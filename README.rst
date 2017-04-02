@@ -9,4 +9,3 @@ This is useful when you have a sequence of commands each of which can
 fail and you want to keep rerunning the sequence until it succeeds, yet 
 you don't want to run previously completed parts again.
 
-See examples in `idemseq/examples/`

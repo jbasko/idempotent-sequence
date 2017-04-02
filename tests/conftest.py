@@ -1,8 +1,9 @@
 import logging
+
 import pytest
 
 from idemseq.command import Command
-from idemseq.examples.util import configure_logging
+from idemseq.log import configure_logging
 from idemseq.sequence import SequenceBase
 
 configure_logging(log_level=logging.DEBUG)
