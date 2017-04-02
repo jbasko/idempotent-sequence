@@ -13,6 +13,7 @@ def one_command_sequence_base():
 
 def test_command_state_interface(one_command_sequence_base):
     sequence_state = one_command_sequence_base()
+
     command_state = list(sequence_state)[0]
 
     assert not command_state.is_finished

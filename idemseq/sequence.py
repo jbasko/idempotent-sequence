@@ -7,6 +7,12 @@ from idemseq.command import Command
 log = logging.getLogger(__name__)
 
 
+class DryRunResult(object):
+    def __init__(self, **call_details):
+        for k, v in call_details.items():
+            setattr(self, k, v)
+
+
 class SequenceCommand(object):
     """
     Represents state of Command execution as part of a Sequence.
@@ -65,6 +71,10 @@ class SequenceCommand(object):
         Checks if this sequence command is ready to be run and if so -- runs it.
         Otherwise raises an explanatory exception.
         """
+        if not self._sequence.run_options:
+            raise RuntimeError(
+                'Attempting to run a sequence command {} before sequence run has been initialised'.format(self.name)
+            )
 
         if self._sequence.is_finished and not self.options.run_always:
             raise self.AlreadyCompleted(self.name)
@@ -78,10 +88,15 @@ class SequenceCommand(object):
 
         kwargs = {}
         for param in self._command.parameters:
-            if param.name in self._sequence.context:
-                kwargs[param.name] = self._sequence.context[param.name]
+            if param.name in self._sequence.run_context:
+                kwargs[param.name] = self._sequence.run_context[param.name]
 
-        result = self._command(**kwargs)
+        if self._sequence.run_options.dry_run:
+            log.info('[dry-run] Command "{}"'.format(self.name))
+            result = DryRunResult(command=self._command, kwargs=kwargs)
+        else:
+            result = self._command(**kwargs)
+
         self._sequence.state_registry.update_status(self, self.status_finished)
 
         return result
@@ -150,8 +165,8 @@ class SequenceBase(object):
 class SequenceRunOptions(Options):
     _valid_options = {
         'warn_only': False,
+        'dry_run': None,
     }
-
 
 
 class Sequence(object):
@@ -162,17 +177,25 @@ class Sequence(object):
     """
     state_registry_cls = None
 
-    def __init__(self, base, state_registry_name=None):
+    def __init__(self, base, state_registry_name=None, context=None, **run_options):
         self._sequence_base = base
 
         # Context cannot be injected in constructor, should be supplied at run attempt time.
-        self._context = None
+        self._run_context = None
+
+        # Run-specific
+        self._run_options = None
 
         state_registry_cls = self.state_registry_cls
         if state_registry_cls is None:
             from idemseq.persistence import SqliteStateRegistry
             state_registry_cls = SqliteStateRegistry
         self._state_registry = state_registry_cls(name=state_registry_name)
+
+        from idemseq.persistence import DryRunStateRegistry
+        self._dry_run_state_registry = DryRunStateRegistry(name=state_registry_name)
+
+        self.init_run(context=context, **run_options)
 
     def __iter__(self):
         for command in self._sequence_base:
@@ -190,8 +213,12 @@ class Sequence(object):
         return len(self._sequence_base)
 
     @property
-    def context(self):
-        return self._context
+    def run_context(self):
+        return self._run_context
+
+    @property
+    def run_options(self):
+        return self._run_options
 
     def reset(self):
         for command in self._sequence_base:
@@ -199,7 +226,10 @@ class Sequence(object):
 
     @property
     def state_registry(self):
-        return self._state_registry
+        if self.run_options.dry_run:
+            return self._dry_run_state_registry
+        else:
+            return self._state_registry
 
     @property
     def is_finished(self):
@@ -214,13 +244,24 @@ class Sequence(object):
                 return False
         return False
 
+    def init_run(self, context=None, **run_options):
+        self._run_options = SequenceRunOptions(run_options)
+        self._run_context = context or {}
+
+        if self.run_options.dry_run:
+            # Copy state from the real state registry to dry run registry
+            for k, v in self._state_registry.get_known_statuses().items():
+                self._dry_run_state_registry.update_status(self[k], v)
+
     def run(self, context=None, **run_options):
         """
         Runs the sequence of steps.
         """
-        options = SequenceRunOptions(run_options)
 
-        self._context = context or {}
+        # Note that we override any context or run options that were set at Sequence creation time.
+        # TODO This may be a bit dangerous if someone creates a dry run Sequence and then calls run()
+        # TODO on it without dry_run=True thinking that it will be a dry run.
+        self.init_run(context=context, **run_options)
 
         if self.is_finished:
             run_always = [command for command in self if command.options.run_always]
@@ -232,7 +273,7 @@ class Sequence(object):
                 try:
                     command.run()
                 except Exception as e:
-                    if options.warn_only:
+                    if self.run_options.warn_only:
                         log.warning(e)
                         return
                     raise
@@ -244,7 +285,7 @@ class Sequence(object):
             except SequenceCommand.AlreadyCompleted:
                 continue
             except Exception as e:
-                if options.warn_only:
+                if self.run_options.warn_only:
                     log.warning(e)
                     return
                 raise

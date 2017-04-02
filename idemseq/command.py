@@ -18,7 +18,7 @@ class CommandOptions(Options):
 
 class Command(object):
     """
-    Represents a function and its meta information (options) to be used
+    Represents a function and its meta information (run_options) to be used
     when the function is run as part of a sequence.
     """
 

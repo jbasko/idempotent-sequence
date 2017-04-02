@@ -3,17 +3,9 @@ import pytest
 
 from idemseq.command import Command
 from idemseq.examples.util import configure_logging
-
+from idemseq.sequence import SequenceBase
 
 configure_logging(log_level=logging.DEBUG)
-
-
-@pytest.fixture
-def function_factory():
-    def factory(return_value=None):
-        def f():
-            return return_value
-    return factory
 
 
 @pytest.fixture
@@ -26,3 +18,24 @@ def hello_world_command():
 @pytest.fixture
 def square_command():
     return Command(lambda x: x * x, name='square')
+
+
+@pytest.fixture
+def three_appenders_sequence_base():
+
+    base = SequenceBase()
+    base.outputs = []
+
+    @base.command
+    def appender1():
+        base.outputs.append(1)
+
+    @base.command
+    def appender2():
+        base.outputs.append(2)
+
+    @base.command
+    def appender3():
+        base.outputs.append(3)
+
+    return base

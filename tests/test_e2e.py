@@ -165,15 +165,15 @@ def test_can_inspect_invocation_completion():
 
 
 def test_can_inspect_and_run_step_individually():
-    seq = SequenceBase(
+    dummy = SequenceBase(
         Command(lambda: 1, name='first'),
         Command(lambda: 2, name='second'),
         Command(lambda: 3, name='third'),
         Command(lambda: 4, name='fourth', run_always=True),
     )
-    inv = seq()
+    sequence = dummy()
 
-    steps = list(inv)
+    steps = list(sequence)
     assert not steps[0].is_finished
     assert not steps[1].is_finished
     assert not steps[2].is_finished
@@ -209,11 +209,11 @@ def test_can_inspect_and_run_step_individually():
         steps[2].run()
 
     assert not steps[3].is_finished
-    assert not inv.is_finished
+    assert not sequence.is_finished
 
     steps[3].run()
     assert steps[3].is_finished
-    assert inv.is_finished
+    assert sequence.is_finished
 
     # Still runnable because run_always=True
     steps[3].run()

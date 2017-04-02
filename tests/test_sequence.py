@@ -65,3 +65,20 @@ def test_reset_sets_all_command_statuses_to_unknown(hello_world_command, square_
     assert not seq.is_finished
     assert not seq['hello_world'].is_finished
     assert seq['square'].is_finished
+
+
+def test_dry_run(three_appenders_sequence_base, tmpdir):
+    base = three_appenders_sequence_base
+    sequence = base(tmpdir.join('test_dry_run.db').strpath)
+
+    assert base.outputs == []
+
+    sequence.run(dry_run=True)
+    assert base.outputs == []
+
+    sequence.run()
+    assert base.outputs == [1, 2, 3]
+
+    # This has no effect because sequence is finished, nothing to do
+    sequence.run(dry_run=True)
+    assert base.outputs == [1, 2, 3]

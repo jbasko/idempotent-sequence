@@ -18,3 +18,9 @@ class Options(dict):
             self[key] = value
         else:
             raise AttributeError(key)
+
+    def __nonzero__(self):
+        return True
+
+    def __bool__(self):
+        return True
