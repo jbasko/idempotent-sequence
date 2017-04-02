@@ -1,16 +1,61 @@
 import logging
 
-from idemseq.base import Options
-from idemseq.command import Command
+import collections
 
+import functools
+import uuid
+
+from werkzeug.local import LocalStack, LocalProxy
+
+from idemseq.base import Options, AttrDict, DryRunResult
+from idemseq.command import Command
+from idemseq.exceptions import PreviousStepsNotFinished
 
 log = logging.getLogger(__name__)
 
 
-class DryRunResult(object):
-    def __init__(self, **call_details):
-        for k, v in call_details.items():
-            setattr(self, k, v)
+class SequenceRunOptions(Options):
+    _valid_options = {
+        'warn_only': False,
+        'dry_run': None,
+    }
+
+
+_sequence_env_stacks = collections.defaultdict(LocalStack)
+
+
+def get_current_sequence_env(sequence_uid):
+    env = _sequence_env_stacks[sequence_uid].top
+    if env is None:
+        raise RuntimeError('Requesting current sequence environment outside of context')
+    return env
+
+
+class SequenceEnv(object):
+    def __init__(self, sequence_uid=None, context=None, **run_options):
+        self.sequence_uid = sequence_uid
+        self.context = AttrDict(context or {})
+        self.run_options = SequenceRunOptions(run_options)
+
+    def push(self):
+        top = _sequence_env_stacks[self.sequence_uid].top
+        if top:
+            self.context.set_parent(top.context)
+            self.run_options.set_parent(top.run_options)
+        _sequence_env_stacks[self.sequence_uid].push(self)
+
+    def pop(self):
+        popped = _sequence_env_stacks[self.sequence_uid].pop()
+        if popped is not self:
+            raise RuntimeError('Popped wrong {}'.format(self.__class__.__name__))
+        self.context.set_parent(None)
+        self.run_options.set_parent(None)
+
+    def __enter__(self):
+        self.push()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.pop()
 
 
 class SequenceCommand(object):
@@ -27,12 +72,6 @@ class SequenceCommand(object):
         status_failed,
         status_finished,
     )
-
-    class AlreadyCompleted(Exception):
-        pass
-
-    class PreviousStepsNotFinished(Exception):
-        pass
 
     def __init__(self, command, sequence=None):
         super(SequenceCommand, self).__init__()
@@ -68,38 +107,42 @@ class SequenceCommand(object):
 
     def run(self):
         """
-        Checks if this sequence command is ready to be run and if so -- runs it.
-        Otherwise raises an explanatory exception.
+        Low-level method to run individual commands.
         """
-        if not self._sequence.run_options:
-            raise RuntimeError(
-                'Attempting to run a sequence command {} before sequence run has been initialised'.format(self.name)
-            )
+        try:
+            if self._sequence.is_finished and not self.options.run_always:
+                log.debug('Command "{}" already completed - skipping'.format(self.name))
+                return
 
-        if self._sequence.is_finished and not self.options.run_always:
-            raise self.AlreadyCompleted(self.name)
+            if self.is_finished and not (self.options.run_always or self.options.run_until_finished):
+                log.debug('Command "{}" already completed - skipping'.format(self.name))
+                return
 
-        if self.is_finished and not (self.options.run_always or self.options.run_until_finished):
-            raise self.AlreadyCompleted(self.name)
+            # Make sure previous steps are all finished
+            if not self._sequence.is_all_finished_before(self):
+                raise PreviousStepsNotFinished()
 
-        # Go through previous steps and make sure they are all finished
-        if not self._sequence.is_all_finished_before(self):
-            raise self.PreviousStepsNotFinished()
+            kwargs = {}
+            for param in self._command.parameters:
+                if param.name in self._sequence.context:
+                    kwargs[param.name] = getattr(self._sequence.context, param.name)
 
-        kwargs = {}
-        for param in self._command.parameters:
-            if param.name in self._sequence.run_context:
-                kwargs[param.name] = self._sequence.run_context[param.name]
+            if self._sequence.run_options.dry_run:
+                log.info('[dry-run] Command "{}"'.format(self.name))
+                result = DryRunResult(command=self._command, kwargs=kwargs)
+            else:
+                result = self._command(**kwargs)
 
-        if self._sequence.run_options.dry_run:
-            log.info('[dry-run] Command "{}"'.format(self.name))
-            result = DryRunResult(command=self._command, kwargs=kwargs)
-        else:
-            result = self._command(**kwargs)
+            self._sequence.state_registry.update_status(self, self.status_finished)
 
-        self._sequence.state_registry.update_status(self, self.status_finished)
+            return result
 
-        return result
+        except Exception as e:
+            if self._sequence.run_options.warn_only:
+                log.warning('[warn-only] Command "{}" failed:'.format(self.name))
+                log.exception(e)
+            else:
+                raise
 
     def __str__(self):
         return '{}(name={})'.format(self.__class__.__name__, self.name)
@@ -135,8 +178,8 @@ class SequenceBase(object):
         for name in sorted(self._order, key=self._order.get):
             yield self._commands[name]
 
-    def __call__(self, step_registry_name=None, **run_options):
-        return Sequence(state_registry_name=step_registry_name, base=self, **run_options)
+    def __call__(self, step_registry_name=None, context=None, **run_options):
+        return Sequence(state_registry_name=step_registry_name, base=self, context=context, **run_options)
 
     def index_of(self, command_name):
         assert command_name in self
@@ -162,21 +205,6 @@ class SequenceBase(object):
             return decorator
 
 
-class SequenceRunOptions(Options):
-    _valid_options = {
-        'warn_only': False,
-        'dry_run': None,
-    }
-
-
-class SequenceContext(object):
-    def push(self):
-        pass
-
-    def pop(self):
-        pass
-
-
 class Sequence(object):
     """
     Sequence is a concrete instance of SequenceBase.
@@ -188,14 +216,6 @@ class Sequence(object):
     def __init__(self, base, state_registry_name=None, context=None, **run_options):
         self._base = base
 
-        self._sequence_context = SequenceContext()
-
-        # Context cannot be injected in constructor, should be supplied at run attempt time.
-        self._run_context = None
-
-        # Run-specific
-        self._run_options = None
-
         state_registry_cls = self.state_registry_cls
         if state_registry_cls is None:
             from idemseq.persistence import SqliteStateRegistry
@@ -205,7 +225,26 @@ class Sequence(object):
         from idemseq.persistence import DryRunStateRegistry
         self._dry_run_state_registry = DryRunStateRegistry(name=state_registry_name)
 
-        self.init_run(context=context, **run_options)
+        self._uid = uuid.uuid4()
+        self._current_env = LocalProxy(functools.partial(get_current_sequence_env, self.uid))
+
+        # This is a dirty hack to ensure that we aren't building on top of another, unrelated sequence env stack
+        try:
+            assert self.run_options
+            raise Exception('Should have raised RuntimeError, the env stack is not clean')
+        except RuntimeError:
+            # Expected
+            pass
+
+        # Initialise this sequence's environment stack with whatever was passed at instantiation time
+        self.env(context=context, **run_options).push()
+
+    @property
+    def uid(self):
+        """
+        Unique identifier of the sequence instance to ensure that it has its own Sequence environment stack.
+        """
+        return self._uid
 
     def __iter__(self):
         for command in self._base:
@@ -222,23 +261,19 @@ class Sequence(object):
     def __len__(self):
         return len(self._base)
 
-    def __enter__(self):
-        self._sequence_context.push()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._sequence_context.pop()
-
     def __str__(self):
         return '<{} ({})>'.format(self.__class__.__name__, ', '.join(str(c.name) for c in self._base))
 
+    def env(self, context=None, **run_options):
+        return SequenceEnv(sequence_uid=self.uid, context=context, **run_options)
+
     @property
-    def run_context(self):
-        return self._run_context
+    def context(self):
+        return self._current_env.context
 
     @property
     def run_options(self):
-        return self._run_options
+        return self._current_env.run_options
 
     def reset(self):
         for command in self._base:
@@ -264,10 +299,7 @@ class Sequence(object):
                 return False
         return False
 
-    def init_run(self, context=None, **run_options):
-        self._run_options = SequenceRunOptions(run_options)
-        self._run_context = context or {}
-
+    def init_run(self):
         if self.run_options.dry_run:
             # Copy state from the real state registry to dry run registry
             for k, v in self._state_registry.get_known_statuses().items():
@@ -277,35 +309,16 @@ class Sequence(object):
         """
         Runs the sequence of steps.
         """
+        self.init_run()
 
-        # Note that we override any context or run options that were set at Sequence creation time.
-        # TODO This may be a bit dangerous if someone creates a dry run Sequence and then calls run()
-        # TODO on it without dry_run=True thinking that it will be a dry run.
-        self.init_run(context=context, **run_options)
-
-        if self.is_finished:
-            run_always = [command for command in self if command.options.run_always]
-            if not run_always:
-                log.info('Nothing to do, all commands in sequence already finished')
-                return
-
-            for command in run_always:
-                try:
+        with self.env(context=context, **run_options):
+            if self.is_finished:
+                run_always = [command for command in self if command.options.run_always]
+                if run_always:
+                    for command in run_always:
+                        command.run()
+                else:
+                    log.info('Nothing to do, all commands in sequence already finished')
+            else:
+                for command in self:
                     command.run()
-                except Exception as e:
-                    if self.run_options.warn_only:
-                        log.warning(e)
-                        return
-                    raise
-            return
-
-        for step in self:
-            try:
-                step.run()
-            except SequenceCommand.AlreadyCompleted:
-                continue
-            except Exception as e:
-                if self.run_options.warn_only:
-                    log.warning(e)
-                    return
-                raise

@@ -1,3 +1,4 @@
+from idemseq.examples.util import configure_logging
 from idemseq.sequence import SequenceBase
 
 example = SequenceBase()
@@ -20,13 +21,29 @@ def print_summary():
 
 if __name__ == '__main__':
     # Can pass run options when initialising Sequence
-    sequence = example('/tmp/fourth-example.db')
+    configure_logging()
+    sequence = example('/tmp/fourth-example.db', context=dict(name='Untitled'))
+    sequence.reset()
 
-    print(sequence)
+    assert sequence.context.name == 'Untitled'
 
-    # with sequence(dry_run=True):
-    #     # Can pass user context when running the Sequence or its commands
-    #     with sequence.user_data(name='Bob'):
-    #         sequence.run()
-    #
-    #     sequence['print_greeting'].run(name='Bobby')
+    with sequence.env(warn_only=True):
+        assert sequence.run_options.warn_only is True
+
+        assert sequence.context.name == 'Untitled'
+
+        with sequence.env(context=dict(name='Bob')):
+            assert sequence.run_options.warn_only is True
+            assert 'name' in sequence.context
+            assert sequence.context.name == 'Bob'
+            sequence.run()
+
+        assert sequence.context.name == 'Untitled'
+
+        with sequence.env(context=dict(name='Bobby')):
+            assert 'name' in sequence.context
+            assert sequence.context.name == 'Bobby'
+            sequence['print_greeting'].run()
+
+        assert sequence.context.name == 'Untitled'
+

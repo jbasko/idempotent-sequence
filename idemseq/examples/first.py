@@ -26,7 +26,7 @@ def the_last_command():
     pass
 
 
-# Command arguments are injected via run_context, default values are respected
+# Command arguments are injected via context, default values are respected
 @example.command
 def second(random_number_generator, x=0.5):
     if random_number_generator() < x:
@@ -60,7 +60,7 @@ if __name__ == '__main__':
         try:
             log.info('Attempt number {}'.format(attempt_no))
 
-            # Run and don't forget to pass run_context (if any of the commands need it)
+            # Run and don't forget to pass context (if any of the commands need it)
             sequence.run(context=dict(random_number_generator=random.random))
 
         except Exception:

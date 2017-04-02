@@ -79,12 +79,17 @@ def test_dry_run(three_appenders_sequence_base, tmpdir):
 
     assert base.outputs == []
 
-    sequence.run(dry_run=True)
+    with sequence.env(dry_run=True):
+        sequence.run()
+
     assert base.outputs == []
 
-    sequence.run()
+    with sequence.env():
+        sequence.run()
+
     assert base.outputs == [1, 2, 3]
 
     # This has no effect because sequence is finished, nothing to do
-    sequence.run(dry_run=True)
+    with sequence.env(dry_run=True):
+        sequence.run()
     assert base.outputs == [1, 2, 3]
