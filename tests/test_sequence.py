@@ -126,3 +126,5 @@ def test_stop_before_run_option(three_appenders_sequence_base):
 
     with pytest.raises(ValueError):
         sequence.run(stop_before='nonexistent')
+
+    assert not sequence.is_finished

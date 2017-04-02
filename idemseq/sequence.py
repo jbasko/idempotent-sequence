@@ -330,7 +330,8 @@ class Sequence(object):
         if self.run_options.dry_run:
             # Copy state from the real state registry to dry run registry
             for k, v in self._state_registry.get_known_statuses().items():
-                self._dry_run_state_registry.update_status(self[k], v)
+                if k in self._base:
+                    self._dry_run_state_registry.update_status(self[k], v)
 
     def run(self, context=None, **run_options):
         """

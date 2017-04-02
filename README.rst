@@ -9,3 +9,8 @@ This is useful when you have a sequence of commands each of which can
 fail and you want to keep rerunning the sequence until it succeeds, yet 
 you don't want to run previously completed parts again.
 
+You can install the package with `pip install idempotent-sequence`
+
+See example under `examples/example01.py`.
+
+To run the example: `python -m idemseq.examples.example01 --help`

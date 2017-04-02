@@ -1,7 +1,11 @@
 import contextlib
+import logging
 import sqlite3
 
 from idemseq.sequence import SequenceCommand
+
+
+log = logging.getLogger(__name__)
 
 
 class StateRegistry(object):
@@ -83,6 +87,8 @@ class SqliteStateRegistry(StateRegistry):
     @property
     def _connection(self):
         if self._actual_connection is None:
+            if self.name != ':memory:':
+                log.debug('Opening/creating SQLite database at {}'.format(self.name))
             self._actual_connection = sqlite3.connect(self.name)
             self._ensure_tables_exist()
         return self._actual_connection
