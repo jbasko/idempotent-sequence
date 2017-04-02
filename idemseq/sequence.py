@@ -18,6 +18,7 @@ class SequenceRunOptions(Options):
     _valid_options = {
         'warn_only': False,
         'dry_run': None,
+        'start_at': None,
     }
 
 
@@ -247,7 +248,24 @@ class Sequence(object):
         return self._uid
 
     def __iter__(self):
+        """
+        Returns an iterator over all sequence commands.
+        
+        This is the recommended way of processing commands to run/inspect because this applies
+        some run_options that aren't applied by accessing commands directly.
+        """
+
+        start_at = self.run_options.start_at
+        if start_at and start_at not in self:
+            raise ValueError('Invalid command specified as start_at "{}"'.format(start_at))
+
         for command in self._base:
+            if start_at:
+                if command.name != start_at:
+                    continue
+                else:
+                    start_at = None
+
             yield SequenceCommand(command=command, sequence=self)
 
     def __contains__(self, item):

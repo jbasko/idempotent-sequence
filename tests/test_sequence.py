@@ -93,3 +93,17 @@ def test_dry_run(three_appenders_sequence_base, tmpdir):
     with sequence.env(dry_run=True):
         sequence.run()
     assert base.outputs == [1, 2, 3]
+
+
+def test_start_at_run_option(three_appenders_sequence_base):
+    base = three_appenders_sequence_base
+    sequence = three_appenders_sequence_base()
+    assert base.outputs == []
+
+    sequence.run(start_at='appender2')
+    assert not sequence.is_finished
+    assert base.outputs == [2, 3]
+
+    with pytest.raises(ValueError):
+        sequence.run(start_at='nonexistent')
+
