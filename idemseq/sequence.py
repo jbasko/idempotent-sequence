@@ -1,4 +1,10 @@
+import logging
+
+from idemseq.base import Options
 from idemseq.command import Command
+
+
+log = logging.getLogger(__name__)
 
 
 class SequenceCommand(object):
@@ -55,9 +61,16 @@ class SequenceCommand(object):
         return self._sequence.state_registry.get_status(self) == self.status_finished
 
     def run(self):
-        if self.is_finished:
-            if not self.options.run_always:
-                raise self.AlreadyCompleted(self.name)
+        """
+        Checks if this sequence command is ready to be run and if so -- runs it.
+        Otherwise raises an explanatory exception.
+        """
+
+        if self._sequence.is_finished and not self.options.run_always:
+            raise self.AlreadyCompleted(self.name)
+
+        if self.is_finished and not (self.options.run_always or self.options.run_until_finished):
+            raise self.AlreadyCompleted(self.name)
 
         # Go through previous steps and make sure they are all finished
         if not self._sequence.is_all_finished_before(self):
@@ -107,8 +120,8 @@ class SequenceBase(object):
         for name in sorted(self._order, key=self._order.get):
             yield self._commands[name]
 
-    def __call__(self, step_registry_name=None, context=None):
-        return Sequence(state_registry_name=step_registry_name, base=self, context=context)
+    def __call__(self, step_registry_name=None):
+        return Sequence(state_registry_name=step_registry_name, base=self)
 
     def index_of(self, command_name):
         assert command_name in self
@@ -133,13 +146,12 @@ class SequenceBase(object):
         else:
             return decorator
 
-    def run_without_registration(self, context=None):
-        """
-        Runs the commands of this sequence, but it uses in-memory storage
-        :param context: 
-        :return: 
-        """
-        self(':memory:', context=context).run()
+
+class SequenceRunOptions(Options):
+    _valid_options = {
+        'warn_only': False,
+    }
+
 
 
 class Sequence(object):
@@ -150,9 +162,11 @@ class Sequence(object):
     """
     state_registry_cls = None
 
-    def __init__(self, base, context=None, state_registry_name=None):
+    def __init__(self, base, state_registry_name=None):
         self._sequence_base = base
-        self._context = context or {}
+
+        # Context cannot be injected in constructor, should be supplied at run attempt time.
+        self._context = None
 
         state_registry_cls = self.state_registry_cls
         if state_registry_cls is None:
@@ -200,16 +214,37 @@ class Sequence(object):
                 return False
         return False
 
-    def run(self, context=None):
+    def run(self, context=None, **run_options):
         """
         Runs the sequence of steps.
-
-        :param context: dict -- if context is not None, it will replace the sequence state's original context entirely. 
         """
-        if context is not None:
-            self._context = context
+        options = SequenceRunOptions(run_options)
+
+        self._context = context or {}
+
+        if self.is_finished:
+            run_always = [command for command in self if command.options.run_always]
+            if not run_always:
+                log.info('Nothing to do, all commands in sequence already finished')
+                return
+
+            for command in run_always:
+                try:
+                    command.run()
+                except Exception as e:
+                    if options.warn_only:
+                        log.warning(e)
+                        return
+                    raise
+            return
+
         for step in self:
             try:
                 step.run()
             except SequenceCommand.AlreadyCompleted:
                 continue
+            except Exception as e:
+                if options.warn_only:
+                    log.warning(e)
+                    return
+                raise

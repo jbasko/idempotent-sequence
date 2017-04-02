@@ -6,32 +6,39 @@ from idemseq.sequence import SequenceCommand, SequenceBase
 
 def test_command_registration():
     output = []
-    seq = SequenceBase()
+    appender = SequenceBase()
 
-    @seq.command
+    @appender.command
     def first():
         output.append(1)
 
-    @seq.command(name='second')
+    @appender.command(name='second')
     def second_step():
         output.append(2)
 
-    @seq.command(run_always=True)
+    @appender.command(run_always=True)
     def third_step():
         output.append(3)
 
-    @seq.command
+    @appender.command
     def fourth_step(a, b, c=3):
         output.append(a + b + c)
 
     assert output == []
 
-    seq.run_without_registration(context=dict(a=1, b=2))
+    seq = appender()
+
+    seq.run(context=dict(a=1, b=2))
     assert output == [1, 2, 3, 6]
 
-    # All steps will run again because we are not registering the state
-    seq.run_without_registration(context=dict(a=1, b=2))
-    assert output == [1, 2, 3, 6, 1, 2, 3, 6]
+    # Will run the third_step again
+    seq.run(context=dict(a=1, b=2))
+    assert output == [1, 2, 3, 6, 3]
+
+    # Reset and will run all steps again
+    seq.reset()
+    seq.run(context=dict(a=5, b=6, c=7))
+    assert output == [1, 2, 3, 6, 3, 1, 2, 3, 18]
 
 
 def test_steps_are_run_once():
@@ -64,7 +71,7 @@ def test_steps_are_run_once():
     assert len(outputs) == 4
 
 
-def test_run_always_is_respected():
+def test_run_always_and_run_until_finished_are_respected():
     outputs = []
 
     seq = SequenceBase()
@@ -77,60 +84,73 @@ def test_run_always_is_respected():
     def append_2_to_output():
         outputs.append(2)
 
-    @seq.command
+    @seq.command(run_until_finished=True)
     def append_3_to_output():
         outputs.append(3)
 
-    appender = seq()
+    @seq.command
+    def append_done_to_output():
+        if len(outputs) > 5:
+            outputs.append('done')
+        else:
+            raise Exception('outputs is short -- {}'.format(len(outputs)))
 
-    appender.run()
+    appender = seq()
+    assert outputs == []
+
+    appender.run(warn_only=True)
     assert outputs == [1, 2, 3]
 
-    appender.run()
-    assert outputs == [1, 2, 3, 2]
+    appender.run(warn_only=True)
+    assert outputs == [1, 2, 3, 2, 3]
 
-    appender.run()
-    assert outputs == [1, 2, 3, 2, 2]
+    appender.run(warn_only=True)
+    assert outputs == [1, 2, 3, 2, 3, 2, 3, 'done']
+
+    # After it is finished, run_always still runs, run_until_finished does not
+    appender.run(warn_only=True)
+    assert outputs == [1, 2, 3, 2, 3, 2, 3, 'done', 2]
 
 
-def test_context_is_injected_and_replaced_entirely_if_specified_on_run():
+def test_context_is_injected_and_is_per_run():
     outputs = []
 
-    def do_multiplication(x, y=10):
+    def do_multiplication(x=1, y=10):
         outputs.append(x * y)
 
-    seq = SequenceBase(
-        Command(do_multiplication, name='first'),
-        Command(do_multiplication, name='second'),
+    multiplying_appender = SequenceBase(
+        Command(do_multiplication, name='first', run_always=True),
+        Command(do_multiplication, name='second', run_always=True),
     )
 
-    invocation1 = seq(context=dict(x=2, y=3))
-    invocation1.run()
-    assert outputs == [6, 6]
+    sequence1 = multiplying_appender()
 
-    invocation2 = seq(context=dict(x=4, y=5))  # this context gets overwritten by context supplied to run
-    invocation2.run(context=dict(x=10))
-    assert outputs == [6, 6, 100, 100]
+    sequence1.run(context=dict(x=2))
+    assert outputs == [20, 20]
+
+    # Make sure that x value from previous run isn't used
+    sequence1.run(context=dict(y=5))
+    assert outputs == [20, 20, 5, 5]
 
 
 def test_order_is_respected():
     outputs = []
 
-    seq = SequenceBase()
+    appender = SequenceBase()
 
-    @seq.command(order=300)
+    @appender.command(order=300)
     def append_1_to_output():
         outputs.append(1)
 
-    @seq.command(order=100)
+    @appender.command(order=100)
     def append_2_to_output():
         outputs.append(2)
 
-    @seq.command(order=200)
+    @appender.command(order=200)
     def append_3_to_output():
         outputs.append(3)
 
-    seq.run_without_registration()
+    appender().run()
     assert outputs == [2, 3, 1]
 
 

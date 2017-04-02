@@ -1,28 +1,18 @@
 import inspect
 import logging
 
+from idemseq.base import Options
 
 log = logging.getLogger(__name__)
 
 
-class CommandOptions(dict):
+class CommandOptions(Options):
     _valid_options = {
         'name': None,
         'order': -1,
         'run_always': None,
+        'run_until_finished': None,
     }
-
-    def __getattr__(self, item):
-        if item in self._valid_options:
-            return self.get(item, self._valid_options[item])
-        else:
-            raise AttributeError(item)
-
-    def __setattr__(self, key, value):
-        if key in self._valid_options:
-            self[key] = value
-        else:
-            raise AttributeError(key)
 
 
 class Command(object):
