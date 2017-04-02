@@ -135,8 +135,8 @@ class SequenceBase(object):
         for name in sorted(self._order, key=self._order.get):
             yield self._commands[name]
 
-    def __call__(self, step_registry_name=None):
-        return Sequence(state_registry_name=step_registry_name, base=self)
+    def __call__(self, step_registry_name=None, **run_options):
+        return Sequence(state_registry_name=step_registry_name, base=self, **run_options)
 
     def index_of(self, command_name):
         assert command_name in self
@@ -169,6 +169,14 @@ class SequenceRunOptions(Options):
     }
 
 
+class SequenceContext(object):
+    def push(self):
+        pass
+
+    def pop(self):
+        pass
+
+
 class Sequence(object):
     """
     Sequence is a concrete instance of SequenceBase.
@@ -178,7 +186,9 @@ class Sequence(object):
     state_registry_cls = None
 
     def __init__(self, base, state_registry_name=None, context=None, **run_options):
-        self._sequence_base = base
+        self._base = base
+
+        self._sequence_context = SequenceContext()
 
         # Context cannot be injected in constructor, should be supplied at run attempt time.
         self._run_context = None
@@ -198,19 +208,29 @@ class Sequence(object):
         self.init_run(context=context, **run_options)
 
     def __iter__(self):
-        for command in self._sequence_base:
+        for command in self._base:
             yield SequenceCommand(command=command, sequence=self)
 
     def __contains__(self, item):
-        return item in self._sequence_base
+        return item in self._base
 
     def __getitem__(self, item):
-        if item not in self._sequence_base:
+        if item not in self._base:
             raise KeyError(item)
-        return SequenceCommand(command=self._sequence_base[item], sequence=self)
+        return SequenceCommand(command=self._base[item], sequence=self)
 
     def __len__(self):
-        return len(self._sequence_base)
+        return len(self._base)
+
+    def __enter__(self):
+        self._sequence_context.push()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._sequence_context.pop()
+
+    def __str__(self):
+        return '<{} ({})>'.format(self.__class__.__name__, ', '.join(str(c.name) for c in self._base))
 
     @property
     def run_context(self):
@@ -221,7 +241,7 @@ class Sequence(object):
         return self._run_options
 
     def reset(self):
-        for command in self._sequence_base:
+        for command in self._base:
             self.state_registry.update_status(command, SequenceCommand.status_unknown)
 
     @property
