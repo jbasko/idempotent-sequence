@@ -1,0 +1,2 @@
+class PreviousStepsNotFinished(Exception):
+    pass

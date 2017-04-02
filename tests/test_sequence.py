@@ -17,6 +17,12 @@ def test_calling_sequence_base_returns_sequence(hello_square_sequence_base):
     assert isinstance(sequence, Sequence)
 
 
+def test_str_representation(hello_square_sequence_base):
+    sequence = hello_square_sequence_base()
+    print(str(sequence))
+    assert str(sequence) == '<Sequence (hello_world, square)>'
+
+
 def test_can_access_sequence_commands_by_name(hello_square_sequence_base):
     sequence = hello_square_sequence_base()
 
@@ -73,12 +79,17 @@ def test_dry_run(three_appenders_sequence_base, tmpdir):
 
     assert base.outputs == []
 
-    sequence.run(dry_run=True)
+    with sequence.env(dry_run=True):
+        sequence.run()
+
     assert base.outputs == []
 
-    sequence.run()
+    with sequence.env():
+        sequence.run()
+
     assert base.outputs == [1, 2, 3]
 
     # This has no effect because sequence is finished, nothing to do
-    sequence.run(dry_run=True)
+    with sequence.env(dry_run=True):
+        sequence.run()
     assert base.outputs == [1, 2, 3]
