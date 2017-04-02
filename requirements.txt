@@ -1,3 +1,5 @@
 # These are development requirements, actual package requirements are in setup.py
 
 pytest
+tox
+

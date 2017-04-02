@@ -1,5 +1,6 @@
-import inspect
 import logging
+
+from funcsigs import signature
 
 from idemseq.base import Options
 
@@ -28,7 +29,7 @@ class Command(object):
 
         self._signature = None
         if self._func:
-            self._signature = inspect.signature(self._func)
+            self._signature = signature(self._func)
 
     def __str__(self):
         return '{}(name={})'.format(self.__class__.__name__, self.name)

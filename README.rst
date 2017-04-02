@@ -1,4 +1,5 @@
-# idempotent-sequence
+idempotent-sequence
+===================
 
 A set of Python classes that provides a way to declare an idempotent sequence of 
 commands -- a sequence that can be run repeatedly and on success will produce 

@@ -21,8 +21,9 @@ setup(
     license='MIT',
     url='https://github.com/jbasko/idempotent-sequence',
     description='Organise a set of units of code in a sequence that can be rerun repeatedly skipping already completed units',
-    long_description=read('README.md'),
-    py_modules=['idemseq.idempotent_sequence'],
+    long_description=read('README.rst'),
+    packages=['idemseq', 'idemseq.examples'],
+    install_requires=['funcsigs>=1.0.2'],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
