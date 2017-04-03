@@ -3,5 +3,6 @@
 pytest
 tox
 
-werkzeug
+pytest-random-order
 
+Werkzeug

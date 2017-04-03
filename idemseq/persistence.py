@@ -1,6 +1,7 @@
 import contextlib
 import logging
 import sqlite3
+import uuid
 
 from idemseq.sequence import SequenceCommand
 
@@ -106,15 +107,13 @@ class SqliteStateRegistry(StateRegistry):
             cursor.close()
 
 
-_dry_run_stage_registries = {}
-
-
 class DryRunStateRegistry(StateRegistry):
-    def __init__(self, name='default'):
+    def __init__(self, name=None):
+        # Always generate a unique name to ensure that dry runs aren't related to each other.
+        # Dry run state should always be a copy of the last known real state.
+        name = '{}-{}'.format(name, uuid.uuid4())
         super(DryRunStateRegistry, self).__init__(name)
-        if name not in _dry_run_stage_registries:
-            _dry_run_stage_registries[name] = {}
-        self._storage = _dry_run_stage_registries[name]
+        self._storage = {}
 
     def get_status(self, command):
         return self._storage.get(command.name, SequenceCommand.status_unknown)
