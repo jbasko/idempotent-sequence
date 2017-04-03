@@ -1,5 +1,6 @@
 import pytest
 
+from idemseq.exceptions import SequenceCommandException
 from idemseq.sequence import SequenceBase, Sequence, SequenceCommand
 
 
@@ -73,22 +74,69 @@ def test_reset_sets_all_command_statuses_to_unknown(hello_world_command, square_
     assert seq['square'].is_finished
 
 
-def test_start_at_run_option(three_appenders_sequence_base):
-    base = three_appenders_sequence_base
-    sequence = three_appenders_sequence_base()
-    assert base.outputs == []
+def test_start_at_run_option():
+    """
+    start_at specifies command with which to continue sequence execution.
+    
+    Unless forced, commands that are not ready, should not be run.
+    
+    Commands that are completed and don't have any options like run_always or run_until_finished,
+    should not be run under any circumstances (user must reset state to execute an already completed command). 
+    """
+    base = SequenceBase()
+    outputs = []
 
-    sequence.run(start_at='appender2')
-    assert not sequence.is_finished
-    assert base.outputs == [2, 3]
+    @base.command
+    def a():
+        outputs.append('a')
+
+    @base.command(run_always=True)
+    def b():
+        outputs.append('b')
+
+    @base.command(run_until_finished=True)
+    def c():
+        outputs.append('c')
+
+    sequence = base()
+
+    with pytest.raises(SequenceCommandException):
+        sequence.run(start_at='b')
+
+    with pytest.raises(SequenceCommandException):
+        sequence.run(start_at='c')
+
+    sequence.run(start_at='a')
+    assert outputs == ['a', 'b', 'c']
+
+    sequence.run(start_at='a')
+    assert outputs == ['a', 'b', 'c', 'b']
+
+    sequence.run(start_at='b')
+    assert outputs == ['a', 'b', 'c', 'b', 'b']
+
+    sequence.run(start_at='c')
+    assert outputs == ['a', 'b', 'c', 'b', 'b']
+
+    sequence.run(start_at='a')
+    assert outputs == ['a', 'b', 'c', 'b', 'b', 'b']
 
     with pytest.raises(ValueError):
-        sequence.run(start_at='nonexistent')
+        sequence.run(start_at='x')
 
-    assert base.outputs == [2, 3]
 
-    sequence.run(start_at='appender1')
-    assert base.outputs == [2, 3, 1]
+def test_start_at_run_option_with_force(three_appenders_sequence_base):
+    sequence = three_appenders_sequence_base()
+    assert three_appenders_sequence_base.outputs == []
+
+    with pytest.raises(SequenceCommandException):
+        sequence.run(start_at='appender2')
+
+    assert three_appenders_sequence_base.outputs == []
+
+    sequence.run(start_at='appender2', force=True)
+
+    assert three_appenders_sequence_base.outputs == [2, 3]
 
 
 def test_stop_before_run_option(three_appenders_sequence_base):
@@ -106,3 +154,39 @@ def test_stop_before_run_option(three_appenders_sequence_base):
         sequence.run(stop_before='nonexistent')
 
     assert not sequence.is_finished
+
+
+def test_running_command_before_its_dependencies_are_finished_raises_sequence_exception(three_appenders_sequence_base):
+    sequence = three_appenders_sequence_base()
+
+    with pytest.raises(SequenceCommandException):
+        sequence['appender2'].run()
+
+    with pytest.raises(SequenceCommandException):
+        sequence.run(start_at='appender2')
+
+    with pytest.raises(SequenceCommandException):
+        sequence['appender3'].run()
+
+    sequence['appender1'].run()
+
+    with pytest.raises(SequenceCommandException):
+        sequence['appender3'].run()
+
+    sequence['appender2'].run()
+
+    sequence['appender3'].run()
+
+
+def test_force_option_allows_running_command_before_its_dependencies_are_finished(three_appenders_sequence_base):
+    sequence = three_appenders_sequence_base()
+
+    with pytest.raises(SequenceCommandException):
+        sequence['appender2'].run()
+
+    assert not sequence['appender2'].is_finished
+
+    with sequence.env(force=True):
+        sequence['appender2'].run()
+
+    assert sequence['appender2'].is_finished

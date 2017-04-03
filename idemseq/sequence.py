@@ -9,7 +9,7 @@ from werkzeug.local import LocalStack, LocalProxy
 
 from idemseq.base import Options, AttrDict, DryRunResult
 from idemseq.command import Command
-from idemseq.exceptions import PreviousStepsNotFinished
+from idemseq.exceptions import SequenceCommandException
 
 log = logging.getLogger(__name__)
 
@@ -20,6 +20,7 @@ class SequenceRunOptions(Options):
         'dry_run': None,
         'start_at': None,
         'stop_before': None,
+        'force': None,
     }
 
 
@@ -112,6 +113,7 @@ class SequenceCommand(object):
         self._sequence.set_command_status(self, status)
 
     def reset(self):
+        log.debug('Resetting status of command "{}"'.format(self.name))
         self.status = self.status_unknown
 
     @property
@@ -131,9 +133,20 @@ class SequenceCommand(object):
                 log.debug('Command "{}" already completed - skipping'.format(self.name))
                 return
 
-            # Make sure previous steps are all finished
-            if not self._sequence.is_all_finished_before(self):
-                raise PreviousStepsNotFinished()
+            # Make sure previous commands are all finished
+            if not self._sequence.run_options.force:
+                unfinished_commands = []
+                for command in self._sequence.all_commands:
+                    if command == self:
+                        break
+                    if not command.is_finished:
+                        unfinished_commands.append(command.name)
+
+                if unfinished_commands:
+                    raise SequenceCommandException(
+                        self,
+                        'Previous commands not finished ({})'.format(', '.join(unfinished_commands)),
+                    )
 
             kwargs = {}
             for param in self._command.parameters:
