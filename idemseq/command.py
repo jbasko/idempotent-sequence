@@ -55,6 +55,12 @@ class Command(object):
         """
         return self._options
 
+    @property
+    def description(self):
+        if self._func:
+            return self._func.__doc__
+        return None
+
     def __call__(self, *args, **kwargs):
         log.debug('Command "{}" starting'.format(self.name))
         try:

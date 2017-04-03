@@ -1,7 +1,7 @@
 import pytest
 
 from idemseq.command import Command
-from idemseq.exceptions import PreviousStepsNotFinished
+from idemseq.exceptions import SequenceCommandException
 from idemseq.sequence import SequenceBase
 
 
@@ -187,7 +187,7 @@ def test_can_inspect_and_run_step_individually():
     # An already completed step is skipped
     steps[0].run()
 
-    with pytest.raises(PreviousStepsNotFinished):
+    with pytest.raises(SequenceCommandException):
         steps[2].run()
 
     steps[1].run()
