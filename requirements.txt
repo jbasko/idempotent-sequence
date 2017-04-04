@@ -6,3 +6,5 @@ tox
 pytest-random-order
 
 Werkzeug
+
+click
