@@ -68,7 +68,7 @@ def main():
         return
 
     if args.list:
-        for command in sequence:
+        for command in sequence.commands:
             print(' * {} - {}'.format(command.name, 'completed' if command.is_finished else 'todo'))
             if command.description:
                 print(command.description)

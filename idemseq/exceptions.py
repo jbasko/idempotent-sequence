@@ -1,9 +1,3 @@
-class PreviousStepsNotFinished(Exception):
-    # TODO [v2]
-    # TODO Deprecated
-    pass
-
-
 class SequenceException(Exception):
     def __init__(self, sequence, message):
         self.sequence = sequence

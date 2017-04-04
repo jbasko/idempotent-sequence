@@ -1,5 +1,6 @@
 import pytest
 
+from idemseq.command import Command
 from idemseq.exceptions import SequenceCommandException
 from idemseq.sequence import SequenceBase, Sequence, SequenceCommand
 
@@ -190,3 +191,47 @@ def test_force_option_allows_running_command_before_its_dependencies_are_finishe
         sequence['appender2'].run()
 
     assert sequence['appender2'].is_finished
+
+
+def test_next_command_returns_the_first_unfinished_command_in_the_list_of_commands_to_run(three_appenders_sequence_base):
+    sequence = three_appenders_sequence_base()
+
+    assert sequence.next_command.name == 'appender1'
+    assert sequence.next_command.name == 'appender1'
+
+    sequence['appender1'].status = SequenceCommand.status_finished
+
+    assert sequence.next_command.name == 'appender2'
+    assert sequence.next_command.name == 'appender2'
+
+    sequence['appender2'].status = SequenceCommand.status_finished
+
+    assert sequence.next_command.name == 'appender3'
+
+    sequence['appender3'].status = SequenceCommand.status_finished
+
+    assert sequence.next_command is None
+
+
+def test_run_always_and_run_until_finished_do_not_affect_next_command():
+    base = SequenceBase(
+        Command(lambda: 1, name='one', run_always=True),
+        Command(lambda: 2, name='two', run_until_finished=True),
+        Command(lambda: 3, name='three', run_always=True),
+    )
+
+    seq = base()
+
+    assert seq.next_command.name == 'one'
+
+    seq['one'].status = SequenceCommand.status_finished
+
+    assert seq.next_command.name == 'two'
+
+    seq['two'].status = SequenceCommand.status_finished
+
+    assert seq.next_command.name == 'three'
+
+    seq['three'].status = SequenceCommand.status_finished
+
+    assert seq.next_command is None

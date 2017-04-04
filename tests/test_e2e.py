@@ -165,7 +165,7 @@ def test_can_inspect_invocation_completion():
     assert seq.is_finished
 
 
-def test_can_inspect_and_run_step_individually():
+def test_can_inspect_and_run_commands_individually():
     dummy = SequenceBase(
         Command(lambda: 1, name='first'),
         Command(lambda: 2, name='second'),
@@ -174,47 +174,46 @@ def test_can_inspect_and_run_step_individually():
     )
     sequence = dummy()
 
-    steps = list(sequence)
-    assert not steps[0].is_finished
-    assert not steps[1].is_finished
-    assert not steps[2].is_finished
+    assert not sequence['first'].is_finished
+    assert not sequence['second'].is_finished
+    assert not sequence['third'].is_finished
 
-    steps[0].run()
-    assert steps[0].is_finished
-    assert not steps[1].is_finished
-    assert not steps[2].is_finished
+    sequence['first'].run()
+    assert sequence['first'].is_finished
+    assert not sequence['second'].is_finished
+    assert not sequence['third'].is_finished
 
     # An already completed step is skipped
-    steps[0].run()
+    sequence['first'].run()
 
     with pytest.raises(SequenceCommandException):
-        steps[2].run()
+        sequence['third'].run()
 
-    steps[1].run()
-    assert steps[0].is_finished
-    assert steps[1].is_finished
-    assert not steps[2].is_finished
-
-    # An already completed step is skipped
-    steps[0].run()
+    sequence['second'].run()
+    assert sequence['first'].is_finished
+    assert sequence['second'].is_finished
+    assert not sequence['third'].is_finished
 
     # An already completed step is skipped
-    steps[1].run()
-
-    steps[2].run()
-    assert steps[0].is_finished
-    assert steps[1].is_finished
-    assert steps[2].is_finished
+    sequence['first'].run()
 
     # An already completed step is skipped
-    steps[2].run()
+    sequence['second'].run()
 
-    assert not steps[3].is_finished
+    sequence['third'].run()
+    assert sequence['first'].is_finished
+    assert sequence['second'].is_finished
+    assert sequence['third'].is_finished
+
+    # An already completed step is skipped
+    sequence['third'].run()
+
+    assert not sequence['fourth'].is_finished
     assert not sequence.is_finished
 
-    steps[3].run()
-    assert steps[3].is_finished
+    sequence['fourth'].run()
+    assert sequence['fourth'].is_finished
     assert sequence.is_finished
 
     # Still runnable because run_always=True
-    steps[3].run()
+    sequence['fourth'].run()

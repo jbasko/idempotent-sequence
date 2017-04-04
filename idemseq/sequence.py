@@ -275,11 +275,26 @@ class Sequence(object):
     def __iter__(self):
         """
         Returns an iterator over all sequence commands.
-        
-        This is the recommended way of processing commands to run/inspect because this applies
-        some run_options that aren't applied by accessing commands directly.
+        Deprecated. Use one of:
+            1) .next_command
+            2) .commands
+            3) .all_commands
         """
+        log.warning('{}.__iter__ is deprecated. Use .commands or .all_commands'.format(self.__class__.__name__))
+        for command in self.commands:
+            yield command
 
+    @property
+    def commands(self):
+        """
+        A generator of commands to run in the order they need to be run.
+        The commands to be returned are determined when the generator is initialised.
+        This excludes commands already finished or otherwise excluded due to
+        run options.
+        """
+        commands_to_run = []
+
+        sequence_is_finished = self.is_finished
         start_at = self.run_options.start_at
         if start_at and start_at not in self:
             raise ValueError('Invalid command specified for run option start_at - "{}"'.format(start_at))
@@ -288,27 +303,27 @@ class Sequence(object):
         if stop_before and stop_before not in self:
             raise ValueError('Invalid command specified for run option stop_before - "{}"'.format(stop_before))
 
-        for command in self._base:
+        for command in self.all_commands:
             if start_at:
-                if command.name != start_at:
-                    continue
-                else:
+                if command.name == start_at:
                     start_at = None
+                else:
+                    continue
 
             if stop_before and command.name == stop_before:
-                return
+                break
 
-            yield SequenceCommand(command=command, sequence=self)
+            if not command.is_finished:
+                commands_to_run.append(command)
+                continue
 
-    @property
-    def commands(self):
-        """
-        A generator for v2 that always yields the next command that can run, or stops the iteration if it can't.
-        This isn't implemented yet.
-        """
-        # TODO [v2]
-        raise NotImplementedError()
-        for command in self:
+            if command.options.run_always:
+                commands_to_run.append(command)
+
+            if not sequence_is_finished and command.options.run_until_finished:
+                commands_to_run.append(command)
+
+        for command in commands_to_run:
             yield command
 
     @property
@@ -318,6 +333,17 @@ class Sequence(object):
         """
         for command in self._base:
             yield SequenceCommand(command=command, sequence=self)
+
+    @property
+    def next_command(self):
+        """
+        Returns the next command after the last finished command.
+        Returns None if sequence is finished.
+        """
+        for command in self.commands:
+            if not command.is_finished:
+                return command
+        return None
 
     def __contains__(self, item):
         return item in self._base
@@ -397,17 +423,8 @@ class Sequence(object):
         Runs the sequence of steps.
         """
         with self.env(context=context, **run_options):
-            if self.is_finished:
-                run_always = [command for command in self if command.options.run_always]
-                if run_always:
-                    log.debug('Sequence has already been completed, running commands marked with run_always')
-                    for command in run_always:
-                        command.run()
-                else:
-                    log.info('Nothing to do, all commands in sequence already finished')
-            else:
-                for command in self:
-                    command.run()
+            for command in self.commands:
+                command.run()
 
     def set_command_status(self, sequence_command, status):
         assert sequence_command._sequence is self
