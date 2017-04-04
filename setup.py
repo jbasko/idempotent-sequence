@@ -13,7 +13,7 @@ def read(fname):
 
 setup(
     name='idempotent-sequence',
-    version='1.0.3',
+    version='2.0.0',
     author='Jazeps Basko',
     author_email='jazeps.basko@gmail.com',
     maintainer='Jazeps Basko',
