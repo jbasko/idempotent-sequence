@@ -81,12 +81,11 @@ def test_calling_instance_with_commands_creates_sequence(hello_world_command, sq
     seq1 = SequenceBase(hello_world_command, square_command)()
     assert len(seq1) == 2
 
-    commands = list(seq1)
-    assert len(commands) == 2
-    assert isinstance(commands[0], SequenceCommand)
-    assert commands[0].command == hello_world_command
-    assert isinstance(commands[1], SequenceCommand)
-    assert commands[1].command == square_command
+    assert len(seq1) == 2
+    assert isinstance(seq1['hello_world'], SequenceCommand)
+    assert seq1['hello_world'].command == hello_world_command
+    assert isinstance(seq1['square'], SequenceCommand)
+    assert seq1['square'].command == square_command
 
 
 def test_can_access_commands_by_name(hello_world_command, square_command):
