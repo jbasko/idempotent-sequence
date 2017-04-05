@@ -34,6 +34,6 @@ setup(
     ],
     entry_points='''
         [console_scripts]
-        seq=idemseq.cli:cli
+        idemseq=idemseq.controller.cli:cli
     ''',
 )
