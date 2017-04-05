@@ -13,7 +13,7 @@ def read(fname):
 
 setup(
     name='idempotent-sequence',
-    version='2.0.0',
+    version='3.0.0',
     author='Jazeps Basko',
     author_email='jazeps.basko@gmail.com',
     maintainer='Jazeps Basko',
@@ -23,7 +23,7 @@ setup(
     description='Organise a set of units of code in a sequence that can be rerun repeatedly skipping already completed units',
     long_description=read('README.rst'),
     packages=['idemseq', 'idemseq.examples'],
-    install_requires=['funcsigs>=1.0.2', 'Werkzeug>=0.12'],
+    install_requires=['funcsigs>=1.0.2', 'Werkzeug>=0.12', 'click>=6.0'],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
@@ -32,4 +32,8 @@ setup(
         'Programming Language :: Python :: 3.5',
         'License :: OSI Approved :: MIT License',
     ],
+    entry_points='''
+        [console_scripts]
+        idemseq=idemseq.cli:cli
+    ''',
 )
