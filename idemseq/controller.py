@@ -11,8 +11,8 @@ def create_controller_cli(base):
     """
 
     scope = {}
-    all_or_command_choice = click.Choice(['all', *base._commands.keys()])
-    command_choice = click.Choice(list(base._commands.keys()))
+    all_or_command_choice = click.Choice(('all',) + tuple(base._commands.keys()))
+    command_choice = click.Choice(base._commands.keys())
     status_choice = click.Choice(SequenceCommand.valid_statuses)
 
     def get_sequence():
@@ -26,7 +26,7 @@ def create_controller_cli(base):
     def log_level_callback(ctx, param, value):
         configure_logging(log_level=value)
 
-    @click.group(invoke_without_command=True)
+    @click.group()
     @click.option(
         '--sequence-id',
         callback=sequence_id_callback,
@@ -44,7 +44,7 @@ def create_controller_cli(base):
         default='info',
     )
     def cli():
-        configure_logging()
+        pass
 
     @cli.command(name='list')
     def list_():
