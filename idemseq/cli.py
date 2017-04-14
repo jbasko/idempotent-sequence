@@ -6,6 +6,7 @@ import click
 
 from idemseq.command import Command
 from idemseq.controller import create_controller_cli
+from idemseq.inspector import Inspector
 from idemseq.sequence import SequenceBase
 
 
@@ -46,10 +47,11 @@ class IdemseqCli(click.MultiCommand):
                     base_module_name
                 ))
                 commands = []
-                # TODO Need to use ast to get the members in the order of declaration!
-                for k, v in inspect.getmembers(base_module):
-                    if not k.startswith('_') and callable(v):
-                        commands.append(Command(v))
+                for func_name in Inspector(base_module).get_function_names():
+                    if func_name.startswith('_'):
+                        continue
+                    commands.append(Command(getattr(base_module, func_name)))
+
                 base = SequenceBase(*commands, auto_generate_command_run_options=True)
 
         return create_controller_cli(base)
