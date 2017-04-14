@@ -24,5 +24,5 @@ def test_e2e():
     assert 'get_name' not in m._exposed_functions
     assert 'say_hello' in m._exposed_functions
 
-    assert m._call_func(m.say_hello) is None
-    assert m._call_func(m.multiply_name) == 'BobBobBobBobBob'
+    assert m.say_hello() is None
+    assert m.multiply_name() == 'BobBobBobBobBob'

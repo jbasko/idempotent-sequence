@@ -1,5 +1,6 @@
 import ast
 import collections
+import functools
 import importlib
 import logging
 import types
@@ -20,14 +21,14 @@ class Module(object):
     
     """
 
-    context_class = dict
+    _context_class = dict
 
     class AstVisitor(ast.NodeVisitor):
         def __init__(self, **callbacks):
             for k, v in callbacks.items():
                 setattr(self, k, v)
 
-    def __init__(self, module_or_name):
+    def __init__(self, module_or_name, context=None):
         self._mod = None
         if isinstance(module_or_name, types.ModuleType):
             self._mod = module_or_name
@@ -42,13 +43,19 @@ class Module(object):
         self._providers = collections.OrderedDict()
         self._dependencies = collections.OrderedDict()
 
-        self._context = self.context_class()
+        # Wrappers around the original functions.
+        # These wrappers are called with no args or kwargs.
+        # Args and kwargs passed to the original functions are taken
+        # from context or generated on the fly using the declared providers.
+        self._executables = {}
+
+        self._context = context or self._context_class()
 
         self._load()
 
     def __getattr__(self, item):
         if item in self._exposed_functions:
-            return self._all_functions[item]
+            return self._get_executable(self._all_functions[item])
         else:
             raise AttributeError(item)
 
@@ -89,20 +96,28 @@ class Module(object):
             if func_name not in self._providers and not func_name.startswith('_'):
                 self._exposed_functions.append(func_name)
 
-    def _call_func(self, func):
+    def _get_executable(self, func):
+        if func.name not in self._executables:
+            self._executables[func.name] = self._create_executable(func)
+        return self._executables[func.name]
+
+    def _create_executable(self, func):
         assert isinstance(func, FunctionWrapper)
 
-        kwargs = {}
+        @functools.wraps(func)
+        def executable():
+            kwargs = {}
 
-        for dep_name, dep_default in func.get_dependencies():
-            if dep_name not in self._context:
-                provider = self._dependencies[dep_name]
-                if provider:
-                    self._context[dep_name] = self._call_func(provider)
-                else:
-                    if dep_default is Empty:
-                        raise RuntimeError('No provider found for {}'.format(dep_name))
-            kwargs[dep_name] = self._context.get(dep_name, dep_default)
+            for dep_name, dep_default in func.get_dependencies():
+                if dep_name not in self._context:
+                    provider = self._dependencies[dep_name]
+                    if provider:
+                        self._context[dep_name] = self._get_executable(provider)()
+                    else:
+                        if dep_default is Empty:
+                            raise RuntimeError('No provider found for {}'.format(dep_name))
+                kwargs[dep_name] = self._context.get(dep_name, dep_default)
 
-        return func(**kwargs)
+            return func(**kwargs)
 
+        return executable

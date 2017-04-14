@@ -108,13 +108,18 @@ class FunctionWrapper(object):
     options_class = OptionsWithName
 
     def __init__(self, func=None, **options):
+        # self._func points to the original function and must not be modified.
+        # decorators and other wrappers should work on self._executor instead.
         self._func = func
+
         self._options = self.options_class(options)
         self.__name__ = self.name
 
         self._signature = None
         if self._func:
             self._signature = funcsigs.signature(self._func)
+
+        self._executor = self._default_executor
 
     @property
     def signature(self):
@@ -141,8 +146,11 @@ class FunctionWrapper(object):
             return self._func.__doc__
         return None
 
-    def __call__(self, *args, **kwargs):
+    def _default_executor(self, *args, **kwargs):
         return self._func(*args, **kwargs)
+
+    def __call__(self, *args, **kwargs):
+        return self._executor(*args, **kwargs)
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self._func == other._func and self._options == other._options
