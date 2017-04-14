@@ -5,6 +5,9 @@ import collections
 import functools
 import uuid
 
+import click
+import funcsigs
+from slugify import slugify
 from werkzeug.local import LocalStack, LocalProxy
 
 from idemseq.base import Options, AttrDict, DryRunResult, FunctionWrapper
@@ -187,12 +190,23 @@ class SequenceCommand(object):
         return '<{}>'.format(self)
 
 
+class BaseOptions(Options):
+    _valid_options = {
+        'auto_generate_command_run_options': False,
+    }
+
+
 class SequenceBase(object):
-    def __init__(self, *commands, **seq_options):
+    options_class = BaseOptions
+
+    def __init__(self, *commands, **base_options):
+        self._options = self.options_class(base_options)
+
         self._order = {}
         self._commands = {}
         self._providers = {}
         self._cli_wrappers = []
+        self._actualrun_options = []  # TODO temporary name before renaming the old run_options to something else
 
         for c in commands or ():
             if not isinstance(c, Command):
@@ -205,6 +219,13 @@ class SequenceBase(object):
             assert c.options.order == -1
 
             self._register_command(c)
+
+        if self.options.auto_generate_command_run_options:
+            self._auto_generate_command_run_options()
+
+    @property
+    def options(self):
+        return self._options
 
     def __len__(self):
         return len(self._commands)
@@ -267,6 +288,7 @@ class SequenceBase(object):
         self._cli_wrappers.append(cli_wrapper)
 
     def cli_wrapper(self, f=None, **options):
+        # TODO Deprecated. Replace with @context_option and @run_option etc.
         def decorator(func):
             cli_wrapper = FunctionWrapper(func=func, **options)
             self._register_cli_wrapper(cli_wrapper)
@@ -276,6 +298,33 @@ class SequenceBase(object):
             return decorator(f)
         else:
             return decorator
+
+    def actualrun_option(self, *args, **kwargs):
+        def callback(ctx, param, value):
+            context = ctx.ensure_object(dict)
+            context[param.name] = value
+            return value
+
+        kwargs.setdefault('callback', callback)
+        kwargs.setdefault('expose_value', False)
+
+        self._actualrun_options.append(click.option(
+            *args, **kwargs
+        ))
+
+    def _auto_generate_command_run_options(self):
+        params_with_missing_defaults = {}
+        for command in self:
+            for p in command.parameters:
+                if p.default is funcsigs._empty:
+                    if p.name not in params_with_missing_defaults:
+                        params_with_missing_defaults[p.name] = p
+
+        for p in params_with_missing_defaults.values():
+            self.actualrun_option(
+                '--{}'.format(slugify(p.name)),
+                required=True,
+            )
 
 
 class Sequence(object):

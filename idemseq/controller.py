@@ -58,7 +58,7 @@ def create_controller_cli(base):
             for command in sequence.all_commands:
                 click.echo(' * {} ({})'.format(command.name, command.status))
 
-    @cli.command()
+    # Note the missing cli.command() -- that's because run is registered below.
     @click.argument('selector', type=command_choice, required=False)
     @click.option('--dry-run', is_flag=True)
     @click.option('--force', is_flag=True)
@@ -73,6 +73,10 @@ def create_controller_cli(base):
             else:
                 with sequence.env(**run_options):
                     sequence[selector].run()
+
+    for actualrun_option in base._actualrun_options:
+        run = actualrun_option(run)
+    cli.command()(run)
 
     @cli.command()
     @click.argument('selector', type=all_or_command_choice)

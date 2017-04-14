@@ -8,3 +8,5 @@ pytest-random-order
 Werkzeug
 
 click
+
+awesome-slugify
