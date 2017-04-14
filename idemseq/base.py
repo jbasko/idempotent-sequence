@@ -1,3 +1,21 @@
+class _Empty(object):
+    def __bool__(self):
+        return False
+
+    def __nonzero__(self):
+        # For Python2
+        return False
+
+    def __str__(self):
+        return '<Empty>'
+
+    def __repr__(self):
+        return '<Empty>'
+
+
+Empty = _Empty()
+
+
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
         super(AttrDict, self).__init__(*args, **kwargs)
