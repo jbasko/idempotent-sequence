@@ -156,15 +156,13 @@ class SequenceCommand(object):
             # Parameter injection
             #
             kwargs = {}
+
+            # TODO For magically generated commands parameters are args and kwargs which is wrong! Those are parameters of executables...
             for param in self._command.parameters:
                 if param.name in self._sequence.context:
                     kwargs[param.name] = getattr(self._sequence.context, param.name)
                 elif param.name in self._sequence.providers:
                     kwargs[param.name] = self._sequence.providers[param.name]()
-                # else:
-                #     raise RuntimeError('No provider found for {!r} required by {}'.format(
-                #         param.name, self.name,
-                #     ))
 
             if self._sequence.run_options.dry_run:
                 log.info('[dry-run] Command "{}"'.format(self.name))
@@ -301,8 +299,7 @@ class SequenceBase(object):
 
     def actualrun_option(self, *args, **kwargs):
         def callback(ctx, param, value):
-            context = ctx.ensure_object(dict)
-            context[param.name] = value
+            ctx.obj[param.name] = value
             return value
 
         kwargs.setdefault('callback', callback)

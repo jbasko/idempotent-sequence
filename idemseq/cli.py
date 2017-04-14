@@ -3,6 +3,7 @@ import inspect
 import logging
 
 import click
+from slugify import slugify
 
 from idemseq.command import Command
 from idemseq.controller import create_controller_cli
@@ -53,8 +54,16 @@ class IdemseqCli(click.MultiCommand):
                 mod = Module(base_module, context=context)
                 commands = [getattr(mod, func_name) for func_name in mod._exposed_functions]
                 base = SequenceBase(*commands, auto_generate_command_run_options=False)
+                for dep_name, dep_provider in mod._dependencies.items():
+                    if dep_provider:
+                        continue
+                    base.actualrun_option(
+                        '--{}'.format(slugify(dep_name)),
+                        required=False,
+                        # TODO should guess type from default value
+                    )
 
-        return create_controller_cli(base, context=context)
+        return create_controller_cli(base, base_context=context)
 
 
 @click.command(cls=IdemseqCli)

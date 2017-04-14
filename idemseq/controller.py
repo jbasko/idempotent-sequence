@@ -4,7 +4,7 @@ from idemseq.log import configure_logging
 from idemseq.sequence import SequenceCommand
 
 
-def create_controller_cli(base, context=None):
+def create_controller_cli(base, base_context=None):
     """
     From SequenceBase creates a runnable Command Line Interface (cli) based controller
     to manage sequences of this base.
@@ -19,7 +19,7 @@ def create_controller_cli(base, context=None):
         # TODO Perhaps use context to get the right sequence when we allow more than
         # TODO one instance of the same base
         if 'sequence' not in scope:
-            scope['sequence'] = base(scope['sequence_id'], context=context)
+            scope['sequence'] = base(scope['sequence_id'], context=base_context)
         return scope['sequence']
 
     def sequence_id_callback(ctx, param, value):
@@ -47,8 +47,8 @@ def create_controller_cli(base, context=None):
     )
     @click.pass_context
     def cli(ctx, **context):
-        context_ = ctx.ensure_object(dict)
-        context_.update(context)
+        ctx.obj = base_context or {}
+        ctx.obj.update(context)
 
     @cli.command(name='list')
     @click.pass_obj

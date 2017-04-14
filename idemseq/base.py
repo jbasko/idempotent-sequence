@@ -50,6 +50,12 @@ class AttrDict(dict):
         else:
             return False
 
+    def __str__(self):
+        return 'AttrDict(...)'
+
+    def __repr__(self):
+        return '<{}>'.format(self)
+
 
 class Options(dict):
     _valid_options = {}

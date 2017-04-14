@@ -113,10 +113,10 @@ class Module(object):
                     provider = self._dependencies[dep_name]
                     if provider:
                         self._context[dep_name] = self._get_executable(provider)()
-                    else:
-                        if dep_default is Empty:
-                            raise RuntimeError('No provider found for {}'.format(dep_name))
-                kwargs[dep_name] = self._context.get(dep_name, dep_default)
+
+                dep_value = self._context.get(dep_name, dep_default)
+                if dep_value is not Empty:
+                    kwargs[dep_name] = dep_value
 
             return func(**kwargs)
 
