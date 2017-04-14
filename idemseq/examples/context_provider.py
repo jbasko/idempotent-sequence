@@ -1,32 +1,38 @@
 import click
 
+from idemseq.base import Empty
 from idemseq.controller import create_controller_cli
 from idemseq.sequence import SequenceBase
 
 
-class Installer(SequenceBase):
-    # @property
-    # def name(self):
-    #     return click.option('--name')
-    pass
-
-
-installer = Installer()
+installer = SequenceBase()
 
 
 @installer.provider
-def name():
-    return 'Bob'
+def greeting():
+    return 'Hello, {name}!'
 
 
-# @installer.cli_customisation
-# def name():
-#     return click.option('--name')
+@installer.cli_wrapper
+def name_option():
+
+    def callback(ctx, param, value):
+        context = ctx.ensure_object(dict)
+        if value is not Empty:
+            context[param.name] = value
+        return value
+
+    return click.option(
+        '--name',
+        callback=callback,
+        expose_value=False,
+        default=Empty,
+    )
 
 
 @installer.command
-def say_hello(name):
-    print('Hello, {}!'.format(name))
+def greet_user(greeting, name):
+    print(greeting.format(name=name))
 
 
 @installer.command

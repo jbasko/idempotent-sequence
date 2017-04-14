@@ -16,6 +16,8 @@ def create_controller_cli(base):
     status_choice = click.Choice(SequenceCommand.valid_statuses)
 
     def get_sequence():
+        # TODO Perhaps use context to get the right sequence when we allow more than
+        # TODO one instance of the same base
         if 'sequence' not in scope:
             scope['sequence'] = base(scope['sequence_id'])
         return scope['sequence']
@@ -43,13 +45,18 @@ def create_controller_cli(base):
         envvar='IDEMSEQ_LOG_LEVEL',
         default='info',
     )
-    def cli():
-        pass
+    @click.pass_context
+    def cli(ctx, **context):
+        context_ = ctx.ensure_object(dict)
+        context_.update(context)
 
     @cli.command(name='list')
-    def list_():
-        for command in get_sequence().all_commands:
-            click.echo(' * {} ({})'.format(command.name, command.status))
+    @click.pass_obj
+    def list_(context):
+        sequence = get_sequence()
+        with sequence.env(context=context):
+            for command in sequence.all_commands:
+                click.echo(' * {} ({})'.format(command.name, command.status))
 
     @cli.command()
     @click.argument('selector', type=command_choice, required=False)
@@ -57,26 +64,37 @@ def create_controller_cli(base):
     @click.option('--force', is_flag=True)
     @click.option('--start-at', type=command_choice)
     @click.option('--stop-before', type=command_choice)
-    def run(selector, **run_options):
+    @click.pass_obj
+    def run(context, selector, **run_options):
         sequence = get_sequence()
-        if not selector:
-            sequence.run(**run_options)
-        else:
-            with sequence.env(**run_options):
-                sequence[selector].run()
+        with sequence.env(context=context):
+            if not selector:
+                sequence.run(**run_options)
+            else:
+                with sequence.env(**run_options):
+                    sequence[selector].run()
 
     @cli.command()
     @click.argument('selector', type=all_or_command_choice)
-    def reset(selector):
-        if selector == 'all':
-            get_sequence().reset()
-        else:
-            get_sequence()[selector].reset()
+    @click.pass_obj
+    def reset(context, selector):
+        sequence = get_sequence()
+        with sequence.env(context=context):
+            if selector == 'all':
+                sequence.reset()
+            else:
+                sequence[selector].reset()
 
     @cli.command()
     @click.argument('selector', type=command_choice)
     @click.argument('status', type=status_choice)
-    def mark(selector, status):
-        get_sequence()[selector].status = status
+    @click.pass_obj
+    def mark(context, selector, status):
+        sequence = get_sequence()
+        with sequence.env(context=context):
+            sequence[selector].status = status
+
+    for cli_wrapper in base._cli_wrappers:
+        cli = cli_wrapper()(cli)
 
     return cli

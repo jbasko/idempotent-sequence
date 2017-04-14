@@ -7,7 +7,7 @@ import uuid
 
 from werkzeug.local import LocalStack, LocalProxy
 
-from idemseq.base import Options, AttrDict, DryRunResult
+from idemseq.base import Options, AttrDict, DryRunResult, FunctionWrapper
 from idemseq.command import Command
 from idemseq.exceptions import SequenceCommandException
 from idemseq.provider import Provider
@@ -192,6 +192,7 @@ class SequenceBase(object):
         self._order = {}
         self._commands = {}
         self._providers = {}
+        self._cli_wrappers = []
 
         for c in commands or ():
             if not isinstance(c, Command):
@@ -254,6 +255,22 @@ class SequenceBase(object):
             provider = Provider(func=func, **options)
             self._register_provider(provider)
             return provider
+
+        if f:
+            return decorator(f)
+        else:
+            return decorator
+
+    def _register_cli_wrapper(self, cli_wrapper):
+        if cli_wrapper in self._cli_wrappers:
+            raise ValueError(cli_wrapper.name)
+        self._cli_wrappers.append(cli_wrapper)
+
+    def cli_wrapper(self, f=None, **options):
+        def decorator(func):
+            cli_wrapper = FunctionWrapper(func=func, **options)
+            self._register_cli_wrapper(cli_wrapper)
+            return cli_wrapper
 
         if f:
             return decorator(f)
