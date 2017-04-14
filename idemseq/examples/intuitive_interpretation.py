@@ -30,5 +30,9 @@ def do_more(more=True):
     print('Doing more? - {}'.format(more))
 
 
+def multiply_name(name, times):
+    return name * times
+
+
 def say_bye(bye_format, name):
     print(bye_format.format(name=name))

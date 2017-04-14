@@ -110,13 +110,3 @@ class IntuitiveModuleInterpreter(Inspector):
         for func in public_functions:
             call_func(func)
 
-
-inspector = IntuitiveModuleInterpreter('idemseq.examples.intuitive_interpretation')
-print(inspector)
-
-print(inspector.parser.all_functions)
-print(inspector.parser.all_dependencies)
-
-print(inspector.get_public_functions())
-
-inspector.invoke()
