@@ -107,6 +107,7 @@ class FunctionWrapper(object):
     def __init__(self, func=None, **options):
         self._func = func
         self._options = self.options_class(options)
+        self.__name__ = self.name
 
     @property
     def options(self):
