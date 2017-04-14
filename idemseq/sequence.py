@@ -10,6 +10,7 @@ from werkzeug.local import LocalStack, LocalProxy
 from idemseq.base import Options, AttrDict, DryRunResult
 from idemseq.command import Command
 from idemseq.exceptions import SequenceCommandException
+from idemseq.provider import Provider
 
 log = logging.getLogger(__name__)
 
@@ -148,10 +149,19 @@ class SequenceCommand(object):
                         'Previous commands not finished ({})'.format(', '.join(unfinished_commands)),
                     )
 
+            #
+            # Parameter injection
+            #
             kwargs = {}
             for param in self._command.parameters:
                 if param.name in self._sequence.context:
                     kwargs[param.name] = getattr(self._sequence.context, param.name)
+                elif param.name in self._sequence.providers:
+                    kwargs[param.name] = self._sequence.providers[param.name]()
+                # else:
+                #     raise RuntimeError('No provider found for {!r} required by {}'.format(
+                #         param.name, self.name,
+                #     ))
 
             if self._sequence.run_options.dry_run:
                 log.info('[dry-run] Command "{}"'.format(self.name))
@@ -181,6 +191,7 @@ class SequenceBase(object):
     def __init__(self, *commands, **seq_options):
         self._order = {}
         self._commands = {}
+        self._providers = {}
 
         for c in commands or ():
             if not isinstance(c, Command):
@@ -227,6 +238,22 @@ class SequenceBase(object):
             command = Command(func=func, **options)
             self._register_command(command, order=options.get('order'))
             return command
+
+        if f:
+            return decorator(f)
+        else:
+            return decorator
+
+    def _register_provider(self, provider):
+        if provider.name in self._providers:
+            raise ValueError(provider.name)
+        self._providers[provider.name] = provider
+
+    def provider(self, f=None, **options):
+        def decorator(func):
+            provider = Provider(func=func, **options)
+            self._register_provider(provider)
+            return provider
 
         if f:
             return decorator(f)
@@ -435,3 +462,7 @@ class Sequence(object):
     def get_command_status(self, sequence_command):
         assert sequence_command._sequence is self
         return self._state_registry.get_status(sequence_command)
+
+    @property
+    def providers(self):
+        return self._base._providers
