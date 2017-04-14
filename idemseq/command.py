@@ -2,7 +2,7 @@ import logging
 
 from funcsigs import signature
 
-from idemseq.base import Options
+from idemseq.base import Options, FunctionWrapper
 
 log = logging.getLogger(__name__)
 
@@ -16,30 +16,15 @@ class CommandOptions(Options):
     }
 
 
-class Command(object):
-    """
-    Represents a function and its meta information (run_options) to be used
-    when the function is run as part of a sequence.
-    """
+class Command(FunctionWrapper):
+    options_class = CommandOptions
 
-    def __init__(self, func=None, **options):
-        self._func = func
-
-        self._options = CommandOptions(options)
+    def __init__(self, *args, **kwargs):
+        super(Command, self).__init__(*args, **kwargs)
 
         self._signature = None
         if self._func:
             self._signature = signature(self._func)
-
-    def __str__(self):
-        return '{}(name={})'.format(self.__class__.__name__, self.name)
-
-    def __repr__(self):
-        return '<{}>'.format(self)
-
-    @property
-    def name(self):
-        return self.options.name or self._func.__name__
 
     @property
     def parameters(self):
@@ -47,19 +32,6 @@ class Command(object):
         Returns a view of parameters from underlying function's signature.
         """
         return self._signature.parameters.values()
-
-    @property
-    def options(self):
-        """
-        Options passed to the Command decorator/constructor.
-        """
-        return self._options
-
-    @property
-    def description(self):
-        if self._func:
-            return self._func.__doc__
-        return None
 
     def __call__(self, *args, **kwargs):
         log.debug('Command "{}" starting'.format(self.name))
@@ -70,6 +42,3 @@ class Command(object):
         except Exception:
             log.error('Command "{}" failed with an exception'.format(self.name))
             raise
-
-    def __eq__(self, other):
-        return isinstance(other, self.__class__) and self._func == other._func and self._options == other._options

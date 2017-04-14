@@ -77,6 +77,46 @@ class Options(dict):
             return False
 
 
+class OptionsWithName(Options):
+    _valid_options = {
+        'name': None
+    }
+
+
+class FunctionWrapper(object):
+    options_class = OptionsWithName
+
+    def __init__(self, func=None, **options):
+        self._func = func
+        self._options = self.options_class(options)
+
+    @property
+    def options(self):
+        return self._options
+
+    @property
+    def name(self):
+        return self.options.name or self._func.__name__
+
+    @property
+    def description(self):
+        if self._func:
+            return self._func.__doc__
+        return None
+
+    def __call__(self, *args, **kwargs):
+        return self._func(*args, **kwargs)
+
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and self._func == other._func and self._options == other._options
+
+    def __str__(self):
+        return '{}(name={})'.format(self.__class__.__name__, self.name)
+
+    def __repr__(self):
+        return '<{}>'.format(self)
+
+
 class DryRunResult(object):
     def __init__(self, **call_details):
         for k, v in call_details.items():
