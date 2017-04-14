@@ -6,7 +6,7 @@ import click
 
 from idemseq.command import Command
 from idemseq.controller import create_controller_cli
-from idemseq.inspector import Inspector
+from idemseq.intuitive_module import Module
 from idemseq.sequence import SequenceBase
 
 
@@ -22,6 +22,8 @@ class IdemseqCli(click.MultiCommand):
         return ()
 
     def get_command(self, ctx, cmd_name):
+        context = None
+
         if ':' in cmd_name:
             base_module_name, base_name = cmd_name.split(':', 1)
             base = getattr(importlib.import_module(base_module_name), base_name)
@@ -42,19 +44,17 @@ class IdemseqCli(click.MultiCommand):
                     ))
                 base = bases[0][1]
             else:
-                # Expose all functions in the module
-                log.warning('No sequence bases found in module {}, exposing all non-private functions'.format(
-                    base_module_name
+                log.warning('No sequence bases found in module {}, will use intuitive module interpretation!'.format(
+                    base_module_name,
                 ))
-                commands = []
-                for func_name in Inspector(base_module).get_function_names():
-                    if func_name.startswith('_'):
-                        continue
-                    commands.append(Command(getattr(base_module, func_name)))
 
-                base = SequenceBase(*commands, auto_generate_command_run_options=True)
+                # TODO context passing is a bit hacky, so we create context here?! that's dirty
+                context = {}
+                mod = Module(base_module, context=context)
+                commands = [getattr(mod, func_name) for func_name in mod._exposed_functions]
+                base = SequenceBase(*commands, auto_generate_command_run_options=False)
 
-        return create_controller_cli(base)
+        return create_controller_cli(base, context=context)
 
 
 @click.command(cls=IdemseqCli)
