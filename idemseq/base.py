@@ -1,3 +1,6 @@
+import funcsigs
+
+
 class _Empty(object):
     def __bool__(self):
         return False
@@ -109,6 +112,21 @@ class FunctionWrapper(object):
         self._options = self.options_class(options)
         self.__name__ = self.name
 
+        self._signature = None
+        if self._func:
+            self._signature = funcsigs.signature(self._func)
+
+    @property
+    def signature(self):
+        return self._signature
+
+    @property
+    def parameters(self):
+        """
+        Returns a view of parameters from underlying function's signature.
+        """
+        return self.signature.parameters.values()
+
     @property
     def options(self):
         return self._options
@@ -134,6 +152,10 @@ class FunctionWrapper(object):
 
     def __repr__(self):
         return '<{}>'.format(self)
+
+    def get_dependencies(self):
+        for p in self.parameters:
+            yield p.name, Empty if p.default is funcsigs._empty else p.default
 
 
 class DryRunResult(object):

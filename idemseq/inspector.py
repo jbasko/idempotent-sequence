@@ -15,6 +15,7 @@ class Parser(ast.NodeVisitor):
 
 class Inspector(object):
     def __init__(self, module_or_name):
+        self._mod = None
         if isinstance(module_or_name, types.ModuleType):
             self._mod = module_or_name
             self.mod_name = self._mod.__name__

@@ -1,7 +1,5 @@
 import logging
 
-from funcsigs import signature
-
 from idemseq.base import Options, FunctionWrapper
 
 log = logging.getLogger(__name__)
@@ -18,20 +16,6 @@ class CommandOptions(Options):
 
 class Command(FunctionWrapper):
     options_class = CommandOptions
-
-    def __init__(self, *args, **kwargs):
-        super(Command, self).__init__(*args, **kwargs)
-
-        self._signature = None
-        if self._func:
-            self._signature = signature(self._func)
-
-    @property
-    def parameters(self):
-        """
-        Returns a view of parameters from underlying function's signature.
-        """
-        return self._signature.parameters.values()
 
     def __call__(self, *args, **kwargs):
         log.debug('Command "{}" starting'.format(self.name))
