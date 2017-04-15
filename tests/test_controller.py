@@ -1,21 +1,7 @@
-import uuid
-
 import pytest
-from click.testing import CliRunner
 
 from idemseq.controller import create_controller_cli
 from idemseq.sequence import SequenceBase
-
-
-@pytest.fixture
-def cli_runner():
-    return CliRunner()
-
-
-@pytest.fixture
-def unique_cli_env(monkeypatch, tmpdir):
-    f = tmpdir.join(str(uuid.uuid4()))
-    monkeypatch.setenv('IDEMSEQ_SEQUENCE_ID', f)
 
 
 @pytest.fixture

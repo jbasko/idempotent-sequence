@@ -13,10 +13,6 @@ def _times():
     return 5
 
 
-def _get_bye_format():
-    return 'Bye, {name} :)'
-
-
 def say_hello(hello_format, name):
     print(hello_format.format(name=name))
 
@@ -26,8 +22,8 @@ def do_something(times):
         print('Doing something')
 
 
-def do_more(more=True):
-    print('Doing more? - {}'.format(more))
+def do_more(apples=5, pears=None):
+    print('{} apples and {} pears'.format(apples, pears))
 
 
 def multiply_name(name, times):

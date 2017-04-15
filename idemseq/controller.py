@@ -1,5 +1,6 @@
 import click
 
+from idemseq.base import AttrDict
 from idemseq.log import configure_logging
 from idemseq.sequence import SequenceCommand
 
@@ -47,16 +48,17 @@ def create_controller_cli(base, base_context=None):
     )
     @click.pass_context
     def cli(ctx, **context):
-        ctx.obj = base_context or {}
+        if base_context is None:
+            ctx.obj = AttrDict()
+        else:
+            ctx.obj = base_context
         ctx.obj.update(context)
 
     @cli.command(name='list')
-    @click.pass_obj
-    def list_(context):
+    def list_():
         sequence = get_sequence()
-        with sequence.env(context=context):
-            for command in sequence.all_commands:
-                click.echo(' * {} ({})'.format(command.name, command.status))
+        for command in sequence.all_commands:
+            click.echo(' * {} ({})'.format(command.name, command.status))
 
     # Note the missing cli.command() -- that's because run is registered below.
     @click.argument('selector', type=command_choice, required=False)
@@ -64,15 +66,13 @@ def create_controller_cli(base, base_context=None):
     @click.option('--force', is_flag=True)
     @click.option('--start-at', type=command_choice)
     @click.option('--stop-before', type=command_choice)
-    @click.pass_obj
-    def run(context, selector, **run_options):
+    def run(selector, **run_options):
         sequence = get_sequence()
-        with sequence.env(context=context):
-            if not selector:
-                sequence.run(**run_options)
-            else:
-                with sequence.env(**run_options):
-                    sequence[selector].run()
+        if not selector:
+            sequence.run(**run_options)
+        else:
+            with sequence.env(**run_options):
+                sequence[selector].run()
 
     for actualrun_option in base._actualrun_options:
         run = actualrun_option(run)
@@ -80,23 +80,19 @@ def create_controller_cli(base, base_context=None):
 
     @cli.command()
     @click.argument('selector', type=all_or_command_choice)
-    @click.pass_obj
-    def reset(context, selector):
+    def reset(selector):
         sequence = get_sequence()
-        with sequence.env(context=context):
-            if selector == 'all':
-                sequence.reset()
-            else:
-                sequence[selector].reset()
+        if selector == 'all':
+            sequence.reset()
+        else:
+            sequence[selector].reset()
 
     @cli.command()
     @click.argument('selector', type=command_choice)
     @click.argument('status', type=status_choice)
-    @click.pass_obj
-    def mark(context, selector, status):
+    def mark(selector, status):
         sequence = get_sequence()
-        with sequence.env(context=context):
-            sequence[selector].status = status
+        sequence[selector].status = status
 
     for cli_wrapper in base._cli_wrappers:
         cli = cli_wrapper()(cli)

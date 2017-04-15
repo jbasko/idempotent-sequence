@@ -3,9 +3,10 @@ import inspect
 import logging
 
 import click
+import click.types
 from slugify import slugify
 
-from idemseq.command import Command
+from idemseq.base import Empty, AttrDict
 from idemseq.controller import create_controller_cli
 from idemseq.intuitive_module import Module
 from idemseq.sequence import SequenceBase
@@ -50,17 +51,17 @@ class IdemseqCli(click.MultiCommand):
                 ))
 
                 # TODO context passing is a bit hacky, so we create context here?! that's dirty
-                context = {}
+                context = AttrDict()  # Must be an AttrDict, otherwise the reference will be lost... # TODO Create a dedicated class
                 mod = Module(base_module, context=context)
                 commands = [getattr(mod, func_name) for func_name in mod._exposed_functions]
                 base = SequenceBase(*commands, auto_generate_command_run_options=False)
-                for dep_name, dep_provider in mod._dependencies.items():
-                    if dep_provider:
+                for dep in mod._dependencies.values():
+                    if dep.provider:
                         continue
                     base.actualrun_option(
-                        '--{}'.format(slugify(dep_name)),
-                        required=False,
-                        # TODO should guess type from default value
+                        '--{}'.format(slugify(dep.name)),
+                        required=dep.default is Empty,
+                        type=click.types.convert_type(None, dep.default),
                     )
 
         return create_controller_cli(base, base_context=context)

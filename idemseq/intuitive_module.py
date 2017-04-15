@@ -5,7 +5,7 @@ import importlib
 import logging
 import types
 
-from idemseq.base import FunctionWrapper, Empty
+from idemseq.base import FunctionWrapper, Empty, AttrDict
 
 log = logging.getLogger(__name__)
 
@@ -21,7 +21,19 @@ class Module(object):
     
     """
 
-    _context_class = dict
+    _context_class = AttrDict
+
+    class Dependency(object):
+        def __init__(self, name, provider=None, default=Empty):
+            self.name = name
+            self.provider = provider
+            self.default = default
+
+        def __str__(self):
+            return '{0}({1.name}, {1.provider}, {1.default})'.format(self.__class__.__name__, self)
+
+        def __repr__(self):
+            return '<{}>'.format(self)
 
     class AstVisitor(ast.NodeVisitor):
         def __init__(self, **callbacks):
@@ -44,12 +56,15 @@ class Module(object):
         self._dependencies = collections.OrderedDict()
 
         # Wrappers around the original functions.
-        # These wrappers are called with no args or kwargs.
+        # These wrappers should be callable with no args or kwargs.
         # Args and kwargs passed to the original functions are taken
         # from context or generated on the fly using the declared providers.
         self._executables = {}
 
-        self._context = context or self._context_class()
+        if context is None:
+            self._context = self._context_class()
+        else:
+            self._context = context
 
         self._load()
 
@@ -68,7 +83,7 @@ class Module(object):
             self._all_functions[node.name] = func
             for dep_name, dep_default in func.get_dependencies():
                 if dep_name not in self._dependencies:
-                    self._dependencies[dep_name] = None
+                    self._dependencies[dep_name] = self.Dependency(dep_name, default=dep_default)
 
         visitor = self.AstVisitor(visit_FunctionDef=register_function_definition)
         with open(self._mod_filename) as f:
@@ -83,13 +98,13 @@ class Module(object):
             )
             for provider_name in provider_names:
                 if provider_name in self._all_functions:
-                    if self._dependencies[dep_name]:
+                    if self._dependencies[dep_name].provider:
                         log.warning(
                             'More than one provider detected for {}, '
                             'ignoring {}'.format(dep_name, provider_name)
                         )
                         continue
-                    self._dependencies[dep_name] = self._all_functions[provider_name]
+                    self._dependencies[dep_name].provider = self._all_functions[provider_name]
                     self._providers[provider_name] = self._all_functions[provider_name]
 
         for func_name, func in self._all_functions.items():
@@ -104,20 +119,26 @@ class Module(object):
     def _create_executable(self, func):
         assert isinstance(func, FunctionWrapper)
 
-        @functools.wraps(func)
-        def executable():
-            kwargs = {}
+        @functools.wraps(func._func)
+        def executable(**kwargs):
+            params = {}
+            params.update(kwargs)
 
             for dep_name, dep_default in func.get_dependencies():
+                dep = self._dependencies[dep_name]
+
                 if dep_name not in self._context:
-                    provider = self._dependencies[dep_name]
-                    if provider:
-                        self._context[dep_name] = self._get_executable(provider)()
+                    if dep.provider:
+                        self._context[dep_name] = self._get_executable(dep.provider)()
 
-                dep_value = self._context.get(dep_name, dep_default)
-                if dep_value is not Empty:
-                    kwargs[dep_name] = dep_value
+                if dep_name in self._context:
+                    dep_value = self._context[dep_name]
+                    if dep_value is not Empty:
+                        params[dep_name] = dep_value
+                else:
+                    if dep_default is not Empty:
+                        params[dep_name] = dep_default
 
-            return func(**kwargs)
+            return func(**params)
 
         return executable

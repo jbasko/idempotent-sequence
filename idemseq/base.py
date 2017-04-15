@@ -40,6 +40,8 @@ class AttrDict(dict):
         raise AttributeError(key)
 
     def set_parent(self, parent):
+        if parent is self:
+            raise RuntimeError('Attempting to set AttrDict parent to itself')
         self._parent_ = parent
 
     def __contains__(self, item):

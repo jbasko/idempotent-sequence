@@ -1,6 +1,8 @@
 import logging
+import uuid
 
 import pytest
+from click.testing import CliRunner
 
 from idemseq.command import Command
 from idemseq.log import configure_logging
@@ -40,3 +42,14 @@ def three_appenders_sequence_base():
         base.outputs.append(3)
 
     return base
+
+
+@pytest.fixture
+def cli_runner():
+    return CliRunner()
+
+
+@pytest.fixture
+def unique_cli_env(monkeypatch, tmpdir):
+    f = tmpdir.join(str(uuid.uuid4()))
+    monkeypatch.setenv('IDEMSEQ_SEQUENCE_ID', f)

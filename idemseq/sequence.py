@@ -10,7 +10,7 @@ import funcsigs
 from slugify import slugify
 from werkzeug.local import LocalStack, LocalProxy
 
-from idemseq.base import Options, AttrDict, DryRunResult, FunctionWrapper
+from idemseq.base import Options, AttrDict, DryRunResult, FunctionWrapper, Empty
 from idemseq.command import Command
 from idemseq.exceptions import SequenceCommandException
 from idemseq.provider import Provider
@@ -41,7 +41,12 @@ def get_current_sequence_env(sequence_uid):
 class SequenceEnv(object):
     def __init__(self, sequence_uid=None, context=None, **run_options):
         self.sequence_uid = sequence_uid
-        self.context = AttrDict(context or {})
+        if isinstance(context, AttrDict):
+            # TODO Should cover this with tests
+            # This allows injecting a context that is later updated from outside
+            self.context = context
+        else:
+            self.context = AttrDict(context or {})
         self.run_options = SequenceRunOptions(run_options)
 
     def push(self):
@@ -157,11 +162,12 @@ class SequenceCommand(object):
             #
             kwargs = {}
 
-            # TODO For magically generated commands parameters are args and kwargs which is wrong! Those are parameters of executables...
+            # TODO Isn't here a bit of duplication? or maybe only in case of auto generated sequence...
+
             for param in self._command.parameters:
                 if param.name in self._sequence.context:
                     kwargs[param.name] = getattr(self._sequence.context, param.name)
-                elif param.name in self._sequence.providers:
+                if param.name in self._sequence.providers:
                     kwargs[param.name] = self._sequence.providers[param.name]()
 
             if self._sequence.run_options.dry_run:
@@ -299,7 +305,8 @@ class SequenceBase(object):
 
     def actualrun_option(self, *args, **kwargs):
         def callback(ctx, param, value):
-            ctx.obj[param.name] = value
+            if value is not Empty and value is not None:
+                ctx.obj[param.name] = value
             return value
 
         kwargs.setdefault('callback', callback)
