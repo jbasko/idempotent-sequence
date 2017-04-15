@@ -48,7 +48,11 @@ class Module(object):
         else:
             self._mod_name = module_or_name
             self._mod = importlib.import_module(self._mod_name)
-        self._mod_filename = self._mod.__file__
+
+        if self._mod.__file__.endswith('.pyc'):
+            self._mod_filename = self._mod.__file__.rstrip('c')
+        else:
+            self._mod_filename = self._mod.__file__
 
         self._all_functions = collections.OrderedDict()
         self._exposed_functions = []
